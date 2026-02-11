@@ -1,0 +1,7 @@
+{
+  "name": "Gemini Live Voice",
+  "description": "A high-performance conversational voice application powered by Gemini 2.5 Native Audio, featuring real-time speech interaction and visual audio feedback.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
