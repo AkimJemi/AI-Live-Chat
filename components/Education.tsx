@@ -1,12 +1,39 @@
 
 import React from 'react';
+import { Language } from '../types';
 
-const Education: React.FC = () => {
+// Added prop definition to fix TS error in App.tsx
+interface EducationProps {
+  lang: Language;
+}
+
+const LOCAL_CONTENT: Record<Language, any> = {
+  [Language.ENGLISH]: {
+    academic: "Academic",
+    eduTitle: "Education"
+  },
+  [Language.JAPANESE]: {
+    academic: "学歴",
+    eduTitle: "学歴"
+  },
+  [Language.CHINESE]: {
+    academic: "教育背景",
+    eduTitle: "教育经历"
+  },
+  [Language.KOREAN]: {
+    academic: "학력",
+    eduTitle: "학력 사항"
+  }
+};
+
+const Education: React.FC<EducationProps> = ({ lang }) => {
+  const t = LOCAL_CONTENT[lang] || LOCAL_CONTENT[Language.ENGLISH];
+
   return (
     <section className="w-full max-w-4xl mt-12 px-2">
       <div className="flex flex-col items-center mb-8">
-        <span className="text-xs font-bold text-purple-500 uppercase tracking-[0.3em] mb-2">Academic</span>
-        <h2 className="text-3xl font-bold text-white">Education</h2>
+        <span className="text-xs font-bold text-purple-500 uppercase tracking-[0.3em] mb-2">{t.academic}</span>
+        <h2 className="text-3xl font-bold text-white">{t.eduTitle}</h2>
       </div>
 
       <div className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-8 backdrop-blur-sm relative overflow-hidden group">

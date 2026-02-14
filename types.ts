@@ -5,6 +5,12 @@ export interface TranscriptionEntry {
   timestamp: number;
 }
 
+export interface MissionObjective {
+  id: string;
+  description: string;
+  isCompleted: boolean;
+}
+
 export interface LinguisticEvaluation {
   grammarScore: number;
   vocabularyScore: number;
@@ -55,7 +61,6 @@ export enum BusinessSituation {
   NETWORKING = 'Networking Event'
 }
 
-// Fixed missing BusinessCategory enum used for professional immersion settings
 export enum BusinessCategory {
   DEVELOPMENT = 'Software Development',
   MARKETING = 'Digital Marketing',

@@ -1,7 +1,34 @@
 
 import React from 'react';
+import { Language } from '../types';
 
-const WorkExperience: React.FC = () => {
+// Added prop definition to fix TS error in App.tsx
+interface WorkExperienceProps {
+  lang: Language;
+}
+
+const LOCAL_CONTENT: Record<Language, any> = {
+  [Language.ENGLISH]: {
+    career: "Career",
+    workExp: "Work Experience"
+  },
+  [Language.JAPANESE]: {
+    career: "経歴",
+    workExp: "職務経歴"
+  },
+  [Language.CHINESE]: {
+    career: "职业生涯",
+    workExp: "工作经验"
+  },
+  [Language.KOREAN]: {
+    career: "경력",
+    workExp: "경력 사항"
+  }
+};
+
+const WorkExperience: React.FC<WorkExperienceProps> = ({ lang }) => {
+  const t = LOCAL_CONTENT[lang] || LOCAL_CONTENT[Language.ENGLISH];
+
   const experiences = [
     {
       role: "Senior Frontend Engineer",
@@ -29,8 +56,8 @@ const WorkExperience: React.FC = () => {
   return (
     <section className="w-full max-w-4xl mt-12 px-2">
       <div className="flex flex-col items-center mb-10">
-        <span className="text-xs font-bold text-green-500 uppercase tracking-[0.3em] mb-2">Career</span>
-        <h2 className="text-3xl font-bold text-white">Work Experience</h2>
+        <span className="text-xs font-bold text-green-500 uppercase tracking-[0.3em] mb-2">{t.career}</span>
+        <h2 className="text-3xl font-bold text-white">{t.workExp}</h2>
       </div>
 
       <div className="relative border-l border-slate-700/50 ml-3 md:ml-6 space-y-12">

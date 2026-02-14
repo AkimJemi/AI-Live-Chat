@@ -1,7 +1,34 @@
 
 import React from 'react';
+import { Language } from '../types';
 
-const Testimonials: React.FC = () => {
+// Added prop definition to fix TS error in App.tsx
+interface TestimonialsProps {
+  lang: Language;
+}
+
+const LOCAL_CONTENT: Record<Language, any> = {
+  [Language.ENGLISH]: {
+    references: "References",
+    testimonialsTitle: "Testimonials"
+  },
+  [Language.JAPANESE]: {
+    references: "推薦",
+    testimonialsTitle: "推薦状"
+  },
+  [Language.CHINESE]: {
+    references: "推荐",
+    testimonialsTitle: "评价"
+  },
+  [Language.KOREAN]: {
+    references: "추천",
+    testimonialsTitle: "추천평"
+  }
+};
+
+const Testimonials: React.FC<TestimonialsProps> = ({ lang }) => {
+  const t = LOCAL_CONTENT[lang] || LOCAL_CONTENT[Language.ENGLISH];
+
   const testimonials = [
     {
       quote: "One of those rare engineers who possesses both deep technical expertise and an intuitive sense for product design. A force multiplier for any team.",
@@ -18,8 +45,8 @@ const Testimonials: React.FC = () => {
   return (
     <section className="w-full max-w-4xl mt-12 px-1">
       <div className="flex flex-col items-center mb-10">
-        <span className="text-xs font-bold text-orange-500 uppercase tracking-[0.3em] mb-2">References</span>
-        <h2 className="text-3xl font-bold text-white">Testimonials</h2>
+        <span className="text-xs font-bold text-orange-500 uppercase tracking-[0.3em] mb-2">{t.references}</span>
+        <h2 className="text-3xl font-bold text-white">{t.testimonialsTitle}</h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

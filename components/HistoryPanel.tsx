@@ -1,21 +1,46 @@
 
 import React from 'react';
-import { SavedSession } from '../types';
+import { SavedSession, Language } from '../types';
 
 interface HistoryPanelProps {
   sessions: SavedSession[];
   onLoad: (session: SavedSession) => void;
   onDelete: (id: string) => void;
+  lang: Language;
 }
 
-const HistoryPanel: React.FC<HistoryPanelProps> = ({ sessions, onLoad, onDelete }) => {
+const LOCAL_CONTENT: Record<Language, any> = {
+  [Language.ENGLISH]: {
+    title: "Neural History Archive",
+    restore: "Restore Session",
+    empty: "No text history"
+  },
+  [Language.JAPANESE]: {
+    title: "履歴アーカイブ",
+    restore: "セッションを復元",
+    empty: "履歴なし"
+  },
+  [Language.CHINESE]: {
+    title: "神经历史存档",
+    restore: "恢复会话",
+    empty: "暂无历史记录"
+  },
+  [Language.KOREAN]: {
+    title: "기록 보관소",
+    restore: "세션 복원",
+    empty: "대화 기록 없음"
+  }
+};
+
+const HistoryPanel: React.FC<HistoryPanelProps> = ({ sessions, onLoad, onDelete, lang }) => {
+  const t = LOCAL_CONTENT[lang] || LOCAL_CONTENT[Language.ENGLISH];
   if (sessions.length === 0) return null;
 
   return (
     <section className="w-full max-w-6xl mt-12 animate-in fade-in slide-in-from-bottom-6 duration-700">
       <div className="flex items-center gap-4 mb-6 px-4">
         <div className="h-px flex-1 bg-slate-800"></div>
-        <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] whitespace-nowrap">Neural History Archive</h2>
+        <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] whitespace-nowrap">{t.title}</h2>
         <div className="h-px flex-1 bg-slate-800"></div>
       </div>
 
@@ -50,14 +75,14 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ sessions, onLoad, onDelete 
             </div>
 
             <p className="text-xs text-slate-300 line-clamp-2 italic mb-4 min-h-[2rem]">
-              "{session.preview || 'No text history'}"
+              "{session.preview || t.empty}"
             </p>
 
             <button
               onClick={() => onLoad(session)}
               className="w-full py-2 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500 transition-all"
             >
-              Restore Session
+              {t.restore}
             </button>
           </div>
         ))}

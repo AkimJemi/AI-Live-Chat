@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { VoiceName, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS } from '../types';
 
@@ -20,50 +19,210 @@ interface ControlPanelProps {
   onAddCategory: () => void;
   selectedDailyTopic: string;
   onDailyTopicChange: (topic: string) => void;
+  availableDailyTopics: string[];
+  onAddDailyTopic: () => void;
   isChallengeMode: boolean;
   onChallengeToggle: (val: boolean) => void;
 }
 
+const CONTROL_LOCALIZATION: Record<Language, any> = {
+  [Language.ENGLISH]: {
+    targetLang: "Target",
+    simType: "Simulation Setting",
+    challengeTitle: "Diagnostic Protocol",
+    trainingTitle: "Learning Protocol",
+    challengeDesc: "Examiner mode. Strict evaluation and technical scrutiny.",
+    trainingDesc: "Coach mode. Gentle corrections and conversational support.",
+    challengeBtn: "Challenge Mode",
+    trainingBtn: "Training Mode",
+    path: "Practice Path",
+    casual: "Casual",
+    pro: "Professional",
+    scenarios: "Scenarios",
+    domain: "Domain",
+    customDomain: "+ Add Domain",
+    customScenario: "+ Add Scenario",
+    start: "Start Immersion",
+    sync: "Syncing...",
+    neuralActive: "Link Active",
+    diagActive: "Diagnostic Active",
+    categories: {
+      [BusinessCategory.DEVELOPMENT]: "Software Development",
+      [BusinessCategory.MARKETING]: "Digital Marketing",
+      [BusinessCategory.FINANCE]: "Investment & Finance",
+      [BusinessCategory.HR]: "Human Resources",
+      [BusinessCategory.SALES]: "Sales & Outreach"
+    },
+    topics: {
+      'Exploring Local Markets': 'Exploring Local Markets',
+      'Beachside Small Talk': 'Beachside Small Talk',
+      'Mountain Trail Guide': 'Mountain Trail Guide',
+      'Island Tour Planning': 'Island Tour Planning',
+      'Seaside Restaurant': 'Seaside Restaurant',
+      'Nature Photography': 'Nature Photography'
+    }
+  },
+  [Language.JAPANESE]: {
+    targetLang: "対象言語",
+    simType: "シミュレーション設定",
+    challengeTitle: "診断プロトコル",
+    trainingTitle: "学習プロトコル",
+    challengeDesc: "試験官モード。厳格な評価と技術的な精査が行われます。",
+    trainingDesc: "コーチモード。優しい修正と会話サポートを提供します。",
+    challengeBtn: "チャレンジモード",
+    trainingBtn: "トレーニングモード",
+    path: "練習コース",
+    casual: "日常会話",
+    pro: "ビジネス",
+    scenarios: "シナリオ選択",
+    domain: "専門分野",
+    customDomain: "+ 分野を追加",
+    customScenario: "+ シナリオを追加",
+    start: "トレーニング開始",
+    sync: "同期中...",
+    neuralActive: "リンク有効",
+    diagActive: "診断有効",
+    categories: {
+      [BusinessCategory.DEVELOPMENT]: "ソフトウェア開発",
+      [BusinessCategory.MARKETING]: "デジタルマーケティング",
+      [BusinessCategory.FINANCE]: "投資・金融",
+      [BusinessCategory.HR]: "人事・採用",
+      [BusinessCategory.SALES]: "営業・アウトリーチ"
+    },
+    topics: {
+      'Exploring Local Markets': '地元の市場を探索',
+      'Beachside Small Talk': 'ビーチでの雑談',
+      'Mountain Trail Guide': '登山のガイド',
+      'Island Tour Planning': '島巡りの計画',
+      'Seaside Restaurant': '海辺のレストラン',
+      'Nature Photography': '自然写真の撮影'
+    }
+  },
+  [Language.CHINESE]: {
+    targetLang: "目标语言",
+    simType: "模拟设置",
+    challengeTitle: "诊断协议",
+    trainingTitle: "学习协议",
+    challengeDesc: "考官模式。严格评估和技术审查。",
+    trainingDesc: "教练模式。温和纠正和对话支持。",
+    challengeBtn: "挑战模式",
+    trainingBtn: "练习模式",
+    path: "练习路径",
+    casual: "休闲生活",
+    pro: "专业职场",
+    scenarios: "场景选择",
+    domain: "专业领域",
+    customDomain: "+ 添加领域",
+    customScenario: "+ 添加场景",
+    start: "开始沉浸",
+    sync: "同步中...",
+    neuralActive: "连接激活",
+    diagActive: "诊断激活",
+    categories: {
+      [BusinessCategory.DEVELOPMENT]: "软件开发",
+      [BusinessCategory.MARKETING]: "数字营销",
+      [BusinessCategory.FINANCE]: "投资与金融",
+      [BusinessCategory.HR]: "人力资源",
+      [BusinessCategory.SALES]: "销售与外联"
+    },
+    topics: {
+      'Exploring Local Markets': '探索当地市场',
+      'Beachside Small Talk': '海边闲聊',
+      'Mountain Trail Guide': '山间小径向导',
+      'Island Tour Planning': '岛屿旅游规划',
+      'Seaside Restaurant': '海滨餐厅',
+      'Nature Photography': '自然摄影'
+    }
+  },
+  [Language.KOREAN]: {
+    targetLang: "대상 언어",
+    simType: "시뮬레이션 설정",
+    challengeTitle: "진단 프로토콜",
+    trainingTitle: "학습 프로토콜",
+    challengeDesc: "시험관 모드. 엄격한 평가 및 기술적 분석 수행.",
+    trainingDesc: "코치 모드. 부드러운 교정 및 대화형 지원.",
+    challengeBtn: "챌린지 모드",
+    trainingBtn: "트레이닝 모드",
+    path: "학습 경로",
+    casual: "일상 생활",
+    pro: "프로페셔널",
+    scenarios: "시나리오選択",
+    domain: "전문 분야",
+    customDomain: "+ 분야 추가",
+    customScenario: "+ 시나리오 추가",
+    start: "몰입 시작",
+    sync: "동기화 중...",
+    neuralActive: "링크 활성화",
+    diagActive: "진단 활성화",
+    categories: {
+      [BusinessCategory.DEVELOPMENT]: "소프트웨어 개발",
+      [BusinessCategory.MARKETING]: "디지털 마케팅",
+      [BusinessCategory.FINANCE]: "투자 및 금융",
+      [BusinessCategory.HR]: "인사 관리",
+      [BusinessCategory.SALES]: "영업 및 아웃리치"
+    },
+    topics: {
+      'Exploring Local Markets': '현지 시장 탐방',
+      'Beachside Small Talk': '해변에서의 스몰토크',
+      'Mountain Trail Guide': '등산로 안내',
+      'Island Tour Planning': '섬 투어 계획',
+      'Seaside Restaurant': '해변 레스토랑',
+      'Nature Photography': '자연 사진 촬영'
+    }
+  }
+};
+
 const ControlPanel: React.FC<ControlPanelProps> = ({
-  isConnecting,
-  isConnected,
-  onToggle,
-  selectedVoice,
-  onVoiceChange,
-  selectedLanguage,
-  onLanguageChange,
-  selectedMode,
-  onModeChange,
-  selectedSituation,
-  onSituationChange,
-  selectedCategory,
-  onCategoryChange,
-  availableCategories,
-  onAddCategory,
-  selectedDailyTopic,
-  onDailyTopicChange,
-  isChallengeMode,
-  onChallengeToggle,
+  isConnecting, isConnected, onToggle,
+  selectedLanguage, onLanguageChange,
+  selectedMode, onModeChange,
+  selectedSituation, onSituationChange,
+  selectedCategory, onCategoryChange,
+  availableCategories, onAddCategory,
+  selectedDailyTopic, onDailyTopicChange,
+  availableDailyTopics, onAddDailyTopic,
+  isChallengeMode, onChallengeToggle,
 }) => {
+  const loc = CONTROL_LOCALIZATION[selectedLanguage] || CONTROL_LOCALIZATION[Language.ENGLISH];
+
   return (
-    <div className="flex flex-col gap-6 p-6 bg-slate-800/50 rounded-[2rem] border border-slate-700 shadow-xl backdrop-blur-sm">
+    <div className="flex flex-col gap-6 p-6 md:p-8 bg-slate-800/40 rounded-[2rem] md:rounded-[2.5rem] border border-slate-700 shadow-2xl backdrop-blur-md">
       
-      {/* Settings Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 1. Main Connection Trigger */}
+      <div className="flex flex-col items-center gap-4 py-2">
+        <button onClick={onToggle} disabled={isConnecting}
+          className={`relative flex items-center justify-center w-24 h-24 md:w-28 md:h-28 rounded-full transition-all transform hover:scale-105 active:scale-90 shadow-2xl ${
+            isConnected ? 'bg-red-500 shadow-red-900/40' : 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-900/40'
+          } disabled:opacity-50`}>
+          {isConnecting ? <div className="w-10 h-10 md:w-12 md:h-12 border-4 border-white border-t-transparent rounded-full animate-spin" /> : 
+            isConnected ? <div className="flex items-center gap-1.5"><div className="w-2.5 h-7 md:w-3 md:h-8 bg-white rounded-full" /><div className="w-2.5 h-7 md:w-3 md:h-8 bg-white rounded-full" /></div> :
+            <svg className="w-10 h-10 md:w-12 md:h-12 text-white translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          }
+          {isConnected && <div className="absolute inset-0 rounded-full border-4 border-red-400/30 voice-pulse" />}
+        </button>
+        <p className={`text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] h-4 text-center ${isConnected ? 'text-green-400 animate-pulse' : 'text-slate-500'}`}>
+          {isConnecting ? loc.sync : isConnected ? (isChallengeMode ? loc.diagActive : loc.neuralActive) : loc.start}
+        </p>
+      </div>
+
+      <div className="h-px bg-slate-700/50 w-full" />
+
+      {/* 2. Configuration Grid */}
+      <div className="flex flex-col gap-6">
         {/* Language Selection */}
-        <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Target Language</label>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-col gap-3">
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{loc.targetLang}</label>
+          <div className="grid grid-cols-2 gap-2">
             {Object.values(Language).map((lang) => (
-              <button
-                key={lang}
-                onClick={() => onLanguageChange(lang)}
+              <button 
+                key={lang} 
+                onClick={() => onLanguageChange(lang)} 
                 disabled={isConnecting || isConnected}
-                className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border ${
-                  selectedLanguage === lang
-                    ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
-                } disabled:opacity-50`}
+                className={`h-9 rounded-xl text-[10px] font-black border transition-all ${
+                  selectedLanguage === lang 
+                    ? 'bg-blue-600/20 border-blue-500 text-blue-300' 
+                    : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-600'
+                }`}
               >
                 {lang}
               </button>
@@ -71,197 +230,54 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         </div>
 
-        {/* Challenge Mode Toggle */}
-        <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Simulation Type</label>
-          <button
-            onClick={() => onChallengeToggle(!isChallengeMode)}
-            disabled={isConnecting || isConnected}
-            className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
-              isChallengeMode 
-                ? 'bg-amber-500/10 border-amber-500/50 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
-                : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm">{isChallengeMode ? '⚡' : '🛡️'}</span>
-              <span className="text-[10px] font-black uppercase">{isChallengeMode ? 'Challenge Mode' : 'Training Mode'}</span>
-            </div>
-            <div className={`w-6 h-3 rounded-full relative transition-colors ${isChallengeMode ? 'bg-amber-500' : 'bg-slate-700'}`}>
-              <div className={`absolute top-0.5 w-2 h-2 rounded-full bg-white transition-all ${isChallengeMode ? 'right-0.5' : 'left-0.5'}`}></div>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <div className="h-px bg-slate-700/50 w-full" />
-
-      {/* Mode Selection */}
-      <div className="flex flex-col gap-4">
-        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Practice Path</label>
-        
+        {/* Mode Switcher (Casual/Pro) */}
         <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => onModeChange(PracticeMode.DAILY)}
-            disabled={isConnecting || isConnected}
-            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
-              selectedMode === PracticeMode.DAILY
-                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
-                : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-600'
-            } disabled:opacity-50`}
-          >
+          <button onClick={() => onModeChange(PracticeMode.DAILY)} disabled={isConnecting || isConnected}
+            className={`h-20 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${
+              selectedMode === PracticeMode.DAILY ? 'bg-emerald-500/10 border-emerald-500 text-emerald-200 shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500'
+            }`}>
             <span className="text-xl">🌴</span>
-            <span className="font-black text-[10px] uppercase tracking-tighter">Casual Life</span>
+            <span className="font-black text-[9px] uppercase tracking-widest">{loc.casual}</span>
           </button>
-
-          <button
-            onClick={() => onModeChange(PracticeMode.BUSINESS)}
-            disabled={isConnecting || isConnected}
-            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
-              selectedMode === PracticeMode.BUSINESS
-                ? 'bg-blue-500/10 border-blue-500 text-blue-200 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
-                : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-600'
-            } disabled:opacity-50`}
-          >
+          <button onClick={() => onModeChange(PracticeMode.BUSINESS)} disabled={isConnecting || isConnected}
+            className={`h-20 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${
+              selectedMode === PracticeMode.BUSINESS ? 'bg-blue-500/10 border-blue-500 text-blue-200 shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500'
+            }`}>
             <span className="text-xl">👔</span>
-            <span className="font-black text-[10px] uppercase tracking-tighter">Professional</span>
+            <span className="font-black text-[9px] uppercase tracking-widest">{loc.pro}</span>
           </button>
         </div>
 
-        {/* Dynamic Scenario Settings */}
-        <div className="mt-2 min-h-[100px]">
+        {/* Dynamic Selection List (Localized) */}
+        <div className="flex flex-col gap-2 min-h-[160px] overflow-y-auto max-h-[220px] custom-scrollbar pr-2">
           {selectedMode === PracticeMode.DAILY ? (
-            <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
-              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block ml-1">Island Tour Scenarios</label>
-              <div className="grid grid-cols-1 gap-2 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
-                {DAILY_TOPICS.map((topic) => (
-                  <label
-                    key={topic}
-                    className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all active:scale-[0.98] ${
-                      selectedDailyTopic === topic
-                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-100 ring-1 ring-emerald-500/30'
-                        : 'bg-slate-900/40 border-slate-700 text-slate-500 hover:border-slate-600 hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="dailyTopic"
-                      className="hidden"
-                      checked={selectedDailyTopic === topic}
-                      onChange={() => onDailyTopicChange(topic)}
-                      disabled={isConnecting || isConnected}
-                    />
-                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                      selectedDailyTopic === topic ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-600'
-                    }`}>
-                      {selectedDailyTopic === topic && <div className="w-2 h-2 bg-emerald-400 rounded-full shadow-[0_0_8px_rgba(52,211,153,0.8)]" />}
-                    </div>
-                    <span className="text-xs font-bold">{topic}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            availableDailyTopics.map((topic) => (
+              <button 
+                key={topic} 
+                onClick={() => onDailyTopicChange(topic)} 
+                disabled={isConnecting || isConnected}
+                className={`w-full p-3 rounded-xl border text-[11px] font-bold text-left transition-all ${
+                  selectedDailyTopic === topic ? 'bg-emerald-600/20 border-emerald-500 text-emerald-100' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                }`}
+              >
+                {loc.topics[topic] || topic}
+              </button>
+            ))
           ) : (
-            <div className="space-y-5 animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="space-y-3">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block ml-1">Expertise Domain</label>
-                <div className="grid grid-cols-1 gap-2 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
-                  {availableCategories.map((cat) => (
-                    <label
-                      key={cat}
-                      className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all active:scale-[0.98] ${
-                        selectedCategory === cat
-                          ? 'bg-blue-600/20 border-blue-500 text-blue-100 ring-1 ring-blue-500/30'
-                          : 'bg-slate-900/40 border-slate-700 text-slate-500 hover:border-slate-600 hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="businessCategory"
-                        className="hidden"
-                        checked={selectedCategory === cat}
-                        onChange={() => onCategoryChange(cat)}
-                        disabled={isConnecting || isConnected}
-                      />
-                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                        selectedCategory === cat ? 'border-blue-400 bg-blue-400/10' : 'border-slate-600'
-                      }`}>
-                        {selectedCategory === cat && <div className="w-2 h-2 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(96,165,250,0.8)]" />}
-                      </div>
-                      <span className="text-xs font-bold">{cat}</span>
-                    </label>
-                  ))}
-                </div>
-                
-                <button
-                  onClick={onAddCategory}
-                  disabled={isConnecting || isConnected}
-                  className="w-full mt-2 py-3 px-4 rounded-xl border border-dashed border-slate-700 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:border-blue-500/50 hover:text-blue-400 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
-                >
-                  <svg className="w-3 h-3 group-hover:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Custom Category
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block ml-1">Context / Scenario</label>
-                <div className="relative">
-                  <select
-                    value={selectedSituation}
-                    onChange={(e) => onSituationChange(e.target.value as BusinessSituation)}
-                    disabled={isConnecting || isConnected}
-                    className="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-200 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none cursor-pointer hover:border-slate-600"
-                  >
-                    {Object.values(BusinessSituation).map((sit) => (
-                      <option key={sit} value={sit}>{sit}</option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
+            availableCategories.map((cat) => (
+              <button 
+                key={cat} 
+                onClick={() => onCategoryChange(cat)} 
+                disabled={isConnecting || isConnected}
+                className={`w-full p-3 rounded-xl border text-[11px] font-bold text-left transition-all ${
+                  selectedCategory === cat ? 'bg-blue-600/20 border-blue-500 text-blue-100' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                }`}
+              >
+                {loc.categories[cat] || cat}
+              </button>
+            ))
           )}
         </div>
-      </div>
-
-      <div className="h-px bg-slate-700/50 w-full" />
-
-      {/* Connect Button */}
-      <div className="flex flex-col items-center gap-4">
-        <button
-          onClick={onToggle}
-          disabled={isConnecting}
-          className={`relative flex items-center justify-center w-24 h-24 rounded-full transition-all transform hover:scale-105 active:scale-95 ${
-            isConnected
-              ? 'bg-red-500 shadow-xl shadow-red-900/40'
-              : 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-xl shadow-blue-900/40'
-          } disabled:opacity-50`}
-        >
-          {isConnecting ? (
-            <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-          ) : isConnected ? (
-            <div className="flex items-center gap-1">
-               <div className="w-2.5 h-7 bg-white rounded-full"></div>
-               <div className="w-2.5 h-7 bg-white rounded-full"></div>
-            </div>
-          ) : (
-            <svg className="w-10 h-10 text-white translate-x-0.5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-            </svg>
-          )}
-          {isConnected && <div className="absolute inset-0 rounded-full border-4 border-red-400/30 voice-pulse"></div>}
-        </button>
-
-        <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isConnected ? 'text-green-400' : 'text-slate-500'}`}>
-          {isConnecting ? 'Syncing...' : isConnected ? (isChallengeMode ? 'Diagnostic Active' : 'Neural Link Active') : 'Start Immersion'}
-        </p>
       </div>
     </div>
   );

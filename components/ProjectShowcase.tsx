@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Language } from '../types';
 
 interface Project {
   title: string;
@@ -8,7 +9,33 @@ interface Project {
   tech: string[];
 }
 
-const ProjectShowcase: React.FC = () => {
+// Added prop definition to fix TS error in App.tsx
+interface ProjectShowcaseProps {
+  lang: Language;
+}
+
+const LOCAL_CONTENT: Record<Language, any> = {
+  [Language.ENGLISH]: {
+    portfolio: "Portfolio",
+    featuredProjects: "Featured Projects"
+  },
+  [Language.JAPANESE]: {
+    portfolio: "ポートフォリオ",
+    featuredProjects: "主要プロジェクト"
+  },
+  [Language.CHINESE]: {
+    portfolio: "作品集",
+    featuredProjects: "精品项目"
+  },
+  [Language.KOREAN]: {
+    portfolio: "포트폴리오",
+    featuredProjects: "주요 프로젝트"
+  }
+};
+
+const ProjectShowcase: React.FC<ProjectShowcaseProps> = ({ lang }) => {
+  const t = LOCAL_CONTENT[lang] || LOCAL_CONTENT[Language.ENGLISH];
+
   const projects: Project[] = [
     {
       title: "Vision-AI Assistant",
@@ -33,8 +60,8 @@ const ProjectShowcase: React.FC = () => {
   return (
     <section className="w-full max-w-4xl mt-12 px-1">
       <div className="flex flex-col items-center mb-8">
-        <span className="text-xs font-bold text-blue-500 uppercase tracking-[0.3em] mb-2">Portfolio</span>
-        <h2 className="text-3xl font-bold text-white">Featured Projects</h2>
+        <span className="text-xs font-bold text-blue-500 uppercase tracking-[0.3em] mb-2">{t.portfolio}</span>
+        <h2 className="text-3xl font-bold text-white">{t.featuredProjects}</h2>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
