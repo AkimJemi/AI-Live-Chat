@@ -5,6 +5,28 @@ export interface TranscriptionEntry {
   timestamp: number;
 }
 
+export interface LinguisticEvaluation {
+  grammarScore: number;
+  vocabularyScore: number;
+  naturalnessScore: number;
+  overallGrade: 'S' | 'A' | 'B' | 'C' | 'D';
+  strengths: string[];
+  weaknesses: string[];
+  suggestedImprovement: string;
+}
+
+export interface SavedSession {
+  id: string;
+  timestamp: number;
+  language: Language;
+  mode: PracticeMode;
+  category: string;
+  dailyTopic: string;
+  transcriptions: TranscriptionEntry[];
+  preview: string;
+  evaluation?: LinguisticEvaluation;
+}
+
 export enum VoiceName {
   ZEPHYR = 'Zephyr',
   PUCK = 'Puck',
@@ -26,12 +48,30 @@ export enum PracticeMode {
 }
 
 export enum BusinessSituation {
-  MEETING = 'Meeting / Brainstorming',
+  MEETING = 'Regular Meeting',
   NEGOTIATION = 'Client Negotiation',
   INTERVIEW = 'Job Interview',
-  PRESENTATION = 'Q&A after Presentation',
+  PRESENTATION = 'Technical Presentation',
   NETWORKING = 'Networking Event'
 }
+
+// Fixed missing BusinessCategory enum used for professional immersion settings
+export enum BusinessCategory {
+  DEVELOPMENT = 'Software Development',
+  MARKETING = 'Digital Marketing',
+  FINANCE = 'Investment & Finance',
+  HR = 'Human Resources',
+  SALES = 'Sales & Outreach'
+}
+
+export const DAILY_TOPICS = [
+  'Exploring Local Markets',
+  'Beachside Small Talk',
+  'Mountain Trail Guide',
+  'Island Tour Planning',
+  'Seaside Restaurant',
+  'Nature Photography'
+];
 
 export interface SessionStatus {
   isConnected: boolean;

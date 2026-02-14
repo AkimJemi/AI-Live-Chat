@@ -1,35 +1,31 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation } from './types';
+import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
+import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, SavedSession, LinguisticEvaluation } from './types';
 import { createBlob, decode, decodeAudioData } from './services/audioService';
 import ControlPanel from './components/ControlPanel';
 import TranscriptionView from './components/TranscriptionView';
 import AudioVisualizer from './components/AudioVisualizer';
 import SuggestionPanel from './components/SuggestionPanel';
-import SkillsAndInterests from './components/SkillsAndInterests';
-import ProjectShowcase from './components/ProjectShowcase';
-import WorkExperience from './components/WorkExperience';
-import Education from './components/Education';
-import Testimonials from './components/Testimonials';
-import ContactSection from './components/ContactSection';
+import HistoryPanel from './components/HistoryPanel';
+import DiagnosticView from './components/DiagnosticView';
 
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
-const SUGGESTION_MODEL_NAME = 'gemini-2.0-flash'; // Optimized for speed
+const SUGGESTION_MODEL_NAME = 'gemini-3-flash-preview';
+const TTS_MODEL_NAME = 'gemini-2.5-flash-preview-tts';
+const EVALUATION_MODEL_NAME = 'gemini-3-flash-preview';
 
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
-
   interface Window {
     aistudio?: AIStudio;
   }
 }
 
 const App: React.FC = () => {
-  // Session States
   const [status, setStatus] = useState<SessionStatus>({
     isConnected: false,
     isConnecting: false,
@@ -39,12 +35,21 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>(Language.JAPANESE);
   const [mode, setMode] = useState<PracticeMode>(PracticeMode.DAILY);
   const [situation, setSituation] = useState<BusinessSituation>(BusinessSituation.MEETING);
+  const [availableCategories, setAvailableCategories] = useState<string[]>(Object.values(BusinessCategory));
+  const [category, setCategory] = useState<string>(BusinessCategory.DEVELOPMENT);
+  const [dailyTopic, setDailyTopic] = useState<string>(DAILY_TOPICS[0]);
+  const [isChallengeMode, setIsChallengeMode] = useState(false);
   
   const [transcriptions, setTranscriptions] = useState<TranscriptionEntry[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const [isPlayingTTS, setIsPlayingTTS] = useState<string | null>(null);
+  const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
+  
+  const [currentEvaluation, setCurrentEvaluation] = useState<LinguisticEvaluation | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
-  // Refs for audio and session
   const audioContextRef = useRef<{ input: AudioContext; output: AudioContext; } | null>(null);
   const inputAnalyserRef = useRef<AnalyserNode | null>(null);
   const outputAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -54,19 +59,33 @@ const App: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const isConnectedRef = useRef<boolean>(false);
   
-  // Refs for state (to access inside closures/callbacks safely)
   const languageRef = useRef(language);
   const modeRef = useRef(mode);
   const situationRef = useRef(situation);
-  const transcriptionsRef = useRef(transcriptions);
+  const categoryRef = useRef(category);
+  const dailyTopicRef = useRef(dailyTopic);
+  const lastSuggestionTimeRef = useRef<number>(0);
+  const isQuotaExceededRef = useRef<boolean>(false);
 
-  // Sync refs with state
   useEffect(() => { languageRef.current = language; }, [language]);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { situationRef.current = situation; }, [situation]);
-  useEffect(() => { transcriptionsRef.current = transcriptions; }, [transcriptions]);
+  useEffect(() => { categoryRef.current = category; }, [category]);
+  useEffect(() => { dailyTopicRef.current = dailyTopic; }, [dailyTopic]);
 
-  // Transcription buffers
+  useEffect(() => {
+    const stored = localStorage.getItem('polyglot_labs_history');
+    if (stored) {
+      try {
+        setSavedSessions(JSON.parse(stored));
+      } catch (e) { console.error("Failed to parse history", e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('polyglot_labs_history', JSON.stringify(savedSessions));
+  }, [savedSessions]);
+
   const currentInputTranscription = useRef('');
   const currentOutputTranscription = useRef('');
 
@@ -92,146 +111,170 @@ const App: React.FC = () => {
     setStatus({ isConnected: false, isConnecting: false, error: null });
   }, [stopAllAudio]);
 
-  const changeApiKey = useCallback(async () => {
-    if (window.aistudio) {
-      try {
-        await window.aistudio.openSelectKey();
-        setStatus(prev => ({ ...prev, error: null }));
-      } catch (err) {
-        console.error('Failed to open key selector:', err);
-      }
-    }
-  }, []);
-
-  // Helper to generate suggestions
-  const generateSuggestions = async (history: TranscriptionEntry[]) => {
-    setIsGeneratingSuggestions(true);
-
+  const runDiagnostic = async (history: TranscriptionEntry[]) => {
+    if (history.length < 2) return;
+    setIsEvaluating(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      const currentLang = languageRef.current;
-      const currentMode = modeRef.current;
-      const currentSit = situationRef.current;
+      const prompt = `Analyze this ${languageRef.current} language learning transcript. Evaluate the 'user' performance based on grammar, vocabulary level, and naturalness.
+      Transcript: ${history.map(h => `[${h.role}] ${h.text}`).join('\n')}
+      Return a JSON object matching the linguistic evaluation schema.`;
 
-      let prompt = '';
+      const response = await ai.models.generateContent({
+        model: EVALUATION_MODEL_NAME,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              grammarScore: { type: Type.NUMBER },
+              vocabularyScore: { type: Type.NUMBER },
+              naturalnessScore: { type: Type.NUMBER },
+              overallGrade: { type: Type.STRING, enum: ['S', 'A', 'B', 'C', 'D'] },
+              strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+              weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
+              suggestedImprovement: { type: Type.STRING }
+            },
+            required: ["grammarScore", "vocabularyScore", "naturalnessScore", "overallGrade", "strengths", "weaknesses", "suggestedImprovement"]
+          }
+        }
+      });
 
-      if (history.length === 0) {
-        // Initial Starters
-        prompt = `
-          Task: Provide 3 short, natural conversation starters (first sentences) for a user practicing ${currentLang}.
-          Context: The user is in a "${currentMode}" mode${currentMode === PracticeMode.BUSINESS ? ` doing a "${currentSit}"` : ''}.
-          Role: You are a coach suggesting what the USER should say to start the conversation with the AI.
-          Format: Return ONLY 3 phrases separated by a pipe "|". No numbers, no labels.
-          Example: Hello, how are you? | I'd like to practice today. | Good morning.
-        `;
-      } else {
-        // Contextual Responses
-        const recentContext = history.slice(-4).map(h => `${h.role}: ${h.text}`).join('\n');
-        prompt = `
-          Context: The user is practicing ${currentLang} in a ${currentMode} setting.
-          
-          Recent Conversation:
-          ${recentContext}
-          
-          Task: Provide 3 short, natural response options the USER could say NEXT.
-          Format: Return ONLY the 3 phrases separated by a pipe "|". No numbers.
-        `;
-      }
+      const result = JSON.parse(response.text);
+      setCurrentEvaluation(result);
+      return result;
+    } catch (e) {
+      console.error("Diagnostic failed", e);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  const saveCurrentSession = async () => {
+    if (transcriptions.length === 0) return;
+    
+    // Auto-run diagnostic on save if it's a significant conversation
+    let evalData;
+    if (transcriptions.length >= 4) {
+      evalData = await runDiagnostic(transcriptions);
+    }
+
+    const newSession: SavedSession = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      language: language,
+      mode: mode,
+      category: category,
+      dailyTopic: dailyTopic,
+      transcriptions: [...transcriptions],
+      preview: transcriptions[transcriptions.length - 1].text,
+      evaluation: evalData
+    };
+
+    setSavedSessions(prev => [newSession, ...prev].slice(0, 20));
+  };
+
+  const generateSuggestions = async (history: TranscriptionEntry[]) => {
+    if (isQuotaExceededRef.current) return;
+    const now = Date.now();
+    if (history.length > 0 && now - lastSuggestionTimeRef.current < 15000) return;
+
+    setIsGeneratingSuggestions(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const currentContext = modeRef.current === PracticeMode.DAILY 
+        ? dailyTopicRef.current 
+        : `${categoryRef.current} context for a ${situationRef.current}`;
+
+      const prompt = history.length === 0 
+        ? `I am practicing ${languageRef.current} in a ${currentContext} setting. Give me 3 short sentences I could say to start the conversation. Separate them by "|".`
+        : `Recent conversation: ${history.slice(-3).map(h => h.text).join(' ')}. Context: ${currentContext}. Give me 3 short follow-up options for the user in ${languageRef.current}. Separate them by "|".`;
 
       const response = await ai.models.generateContent({
         model: SUGGESTION_MODEL_NAME,
         contents: prompt
       });
       
+      lastSuggestionTimeRef.current = Date.now();
       const text = response.text || '';
       const parts = text.split('|').map(s => s.trim()).filter(s => s.length > 0);
-      
-      if (parts.length > 0) {
-        setSuggestions(parts.slice(0, 3));
-      } else {
-        // Fallback if model output format is weird
-        setSuggestions(['Hello!', 'How are you?', 'Let\'s start.']);
+      setSuggestions(parts.length > 0 ? parts.slice(0, 3) : ['Hello', 'How are you?', 'Let\'s start']);
+    } catch (e: any) {
+      if (e.message?.includes('429')) isQuotaExceededRef.current = true;
+    } finally { setIsGeneratingSuggestions(false); }
+  };
+
+  const playTTS = async (text: string) => {
+    if (isPlayingTTS) return;
+    setIsPlayingTTS(text);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: TTS_MODEL_NAME,
+        contents: [{ parts: [{ text: `Speak in ${languageRef.current}: ${text}` }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio && audioContextRef.current) {
+        const { output } = audioContextRef.current;
+        const buffer = await decodeAudioData(decode(base64Audio), output, 24000, 1);
+        const source = output.createBufferSource();
+        source.buffer = buffer;
+        source.connect(output.destination);
+        source.onended = () => setIsPlayingTTS(null);
+        source.start(0);
       }
-    } catch (e) {
-      console.warn('Failed to generate suggestions', e);
-      // Don't clear suggestions on error, keep old ones
-    } finally {
-      setIsGeneratingSuggestions(false);
-    }
+    } catch (err) { setIsPlayingTTS(null); }
   };
 
   const getSystemInstruction = () => {
-    // Access refs to ensure we get the values at the moment of connection
     const lang = languageRef.current;
     const mod = modeRef.current;
-    const sit = situationRef.current;
-
-    let instruction = `You are an advanced language practice partner speaking in ${lang}. `;
+    const type = isChallengeMode ? "EXAMINER" : "COACH";
     
-    if (mod === PracticeMode.DAILY) {
-      instruction += `
-        Role: A friendly, casual acquaintance.
-        Tone: Relaxed, natural, colloquial.
-        Goal: Chat about hobbies, weather, food, or daily life. Keep the conversation flowing naturally.
-      `;
-    } else {
-      instruction += `
-        Role: A professional colleague or business partner.
-        Situation: ${sit}.
-        Tone: Professional, polite, clear, structured.
-        Goal: Roleplay this specific business scenario. Challenge the user slightly with relevant questions.
-      `;
-    }
+    const base = mod === PracticeMode.DAILY 
+      ? `Activity: ${dailyTopicRef.current}. Location: Island.` 
+      : `Domain: ${categoryRef.current}. Scenario: ${situationRef.current}.`;
 
-    instruction += `
-      IMPORTANT:
-      - Speak ONLY in ${lang}.
-      - Keep responses concise (1-3 sentences) to allow the user to speak more.
-      - If the user struggles, politely rephrase or encourage them.
-    `;
+    const instructions = isChallengeMode 
+      ? `Act as a strict but fair language EXAMINER. Challenge the user to use advanced vocabulary. After each turn, implicitly steer them towards a specific linguistic task. If they make mistakes, don't correct them immediately, but note it for later.`
+      : `Act as a helpful, friendly language COACH. Keep the flow natural and encouraging. Correct user mistakes gently if they occur.`;
 
-    return instruction;
+    return `You are a ${type} for ${lang}. 
+    Context: ${base}
+    Goal: High-immersion roleplay.
+    Rules:
+    1. Speak ONLY in ${lang}.
+    2. Keep turns short (1-2 sentences).
+    ${instructions}`;
   };
 
   const startSession = async () => {
     if (status.isConnecting || status.isConnected) return;
-
-    if (window.aistudio) {
-      try {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          await window.aistudio.openSelectKey();
-        }
-      } catch (err) {
-        console.warn('API Key selection check failed, proceeding anyway:', err);
-      }
-    }
+    if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) await window.aistudio.openSelectKey();
 
     setStatus({ isConnecting: true, isConnected: false, error: null });
     setTranscriptions([]);
     setSuggestions([]);
-
+    isQuotaExceededRef.current = false;
+    
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
       if (!audioContextRef.current) {
         const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
         const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        
-        const inputAnalyser = inputCtx.createAnalyser();
-        const outputAnalyser = outputCtx.createAnalyser();
-        inputAnalyser.fftSize = 256;
-        outputAnalyser.fftSize = 256;
-
         audioContextRef.current = { input: inputCtx, output: outputCtx };
-        inputAnalyserRef.current = inputAnalyser;
-        outputAnalyserRef.current = outputAnalyser;
+        inputAnalyserRef.current = inputCtx.createAnalyser();
+        outputAnalyserRef.current = outputCtx.createAnalyser();
       }
 
       await audioContextRef.current.input.resume();
       await audioContextRef.current.output.resume();
-
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       
@@ -239,181 +282,129 @@ const App: React.FC = () => {
         model: MODEL_NAME,
         callbacks: {
           onopen: () => {
-            console.log('Gemini Live session opened');
             isConnectedRef.current = true;
             setStatus({ isConnected: true, isConnecting: false, error: null });
-            
-            // Trigger initial suggestions immediately upon connection
             generateSuggestions([]);
-
             const source = audioContextRef.current!.input.createMediaStreamSource(stream);
             const scriptProcessor = audioContextRef.current!.input.createScriptProcessor(4096, 1, 1);
-            
-            scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
+            scriptProcessor.onaudioprocess = (e) => {
               if (!isConnectedRef.current) return;
-
-              const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-              const pcmBlob = createBlob(inputData);
-              
-              sessionPromise.then((session) => {
-                if (session && isConnectedRef.current) {
-                  try { session.sendRealtimeInput({ media: pcmBlob }); } catch (e) {}
-                }
-              }).catch(() => {});
+              const pcmBlob = createBlob(e.inputBuffer.getChannelData(0));
+              sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob })).catch(() => {});
             };
-
             source.connect(inputAnalyserRef.current!);
             inputAnalyserRef.current!.connect(scriptProcessor);
             scriptProcessor.connect(audioContextRef.current!.input.destination);
           },
-          onmessage: async (message: LiveServerMessage) => {
-            if (message.serverContent?.outputTranscription) {
-              currentOutputTranscription.current += message.serverContent.outputTranscription.text;
-            } else if (message.serverContent?.inputTranscription) {
-              currentInputTranscription.current += message.serverContent.inputTranscription.text;
-            }
-
-            if (message.serverContent?.turnComplete) {
-              const userText = currentInputTranscription.current.trim();
-              const modelText = currentOutputTranscription.current.trim();
-              
-              if (userText || modelText) {
-                const newEntry = { role: 'model' as const, text: modelText, timestamp: Date.now() + 1 };
-                
-                // Functional update to ensure we have latest state
+          onmessage: async (msg) => {
+            if (msg.serverContent?.outputTranscription) currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
+            if (msg.serverContent?.inputTranscription) currentInputTranscription.current += msg.serverContent.inputTranscription.text;
+            if (msg.serverContent?.turnComplete) {
+              const u = currentInputTranscription.current.trim();
+              const m = currentOutputTranscription.current.trim();
+              if (u || m) {
                 setTranscriptions(prev => {
-                  const updated = [
-                    ...prev,
-                    ...(userText ? [{ role: 'user' as const, text: userText, timestamp: Date.now() }] : []),
-                    ...(modelText ? [newEntry] : [])
-                  ];
-                  
-                  // Trigger suggestion generation based on the updated history
+                  const updated = [...prev, ...(u ? [{ role: 'user' as const, text: u, timestamp: Date.now() }] : []), ...(m ? [{ role: 'model' as const, text: m, timestamp: Date.now()+1 }] : [])];
                   generateSuggestions(updated);
                   return updated;
                 });
               }
-
               currentInputTranscription.current = '';
               currentOutputTranscription.current = '';
             }
-
-            const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+            const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio && audioContextRef.current) {
               const { output } = audioContextRef.current;
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, output.currentTime);
-              
-              try {
-                const audioBuffer = await decodeAudioData(decode(base64Audio), output, 24000, 1);
-                const source = output.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(outputAnalyserRef.current!);
-                outputAnalyserRef.current!.connect(output.destination);
-                source.addEventListener('ended', () => { sourcesRef.current.delete(source); });
-                source.start(nextStartTimeRef.current);
-                nextStartTimeRef.current += audioBuffer.duration;
-                sourcesRef.current.add(source);
-              } catch (decodeErr) {
-                console.error('Audio decoding error:', decodeErr);
-              }
-            }
-
-            if (message.serverContent?.interrupted) {
-              stopAllAudio();
+              const buffer = await decodeAudioData(decode(base64Audio), output, 24000, 1);
+              const source = output.createBufferSource();
+              source.buffer = buffer;
+              source.connect(outputAnalyserRef.current!);
+              outputAnalyserRef.current!.connect(output.destination);
+              source.onended = () => sourcesRef.current.delete(source);
+              source.start(nextStartTimeRef.current);
+              nextStartTimeRef.current += buffer.duration;
+              sourcesRef.current.add(source);
             }
           },
-          onerror: (e: any) => {
-            console.error('Session error:', e);
-            isConnectedRef.current = false;
-            let errorMessage = 'Connection error. Please check your internet connection.';
-            const msg = e instanceof Error ? e.message : String(e);
-            
-            if (msg.includes('Requested entity was not found') || msg.includes('404')) {
-              errorMessage = 'Model not found. Please ensure you are using a Paid Project API Key.';
-            } else if (msg.includes('Network error')) {
-              errorMessage = 'Network error. Verify API Key and connection.';
-            }
-
-            setStatus({ isConnecting: false, isConnected: false, error: errorMessage });
-            cleanup();
-          },
-          onclose: (e: any) => {
-            isConnectedRef.current = false;
-            cleanup();
-          },
+          onerror: () => cleanup(),
+          onclose: () => cleanup(),
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
-          },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
           outputAudioTranscription: {},
           inputAudioTranscription: {},
           systemInstruction: getSystemInstruction(),
         },
       });
-
       sessionRef.current = await sessionPromise;
     } catch (err: any) {
-      console.error('Failed to start session catch:', err);
-      setStatus({ 
-        isConnecting: false, 
-        isConnected: false, 
-        error: err.message || 'Failed to connect.' 
-      });
+      setStatus({ isConnecting: false, isConnected: false, error: err.message });
       cleanup();
     }
   };
 
-  const toggleSession = () => {
+  // Fixed missing handleAddCategory function
+  const handleAddCategory = () => {
+    const custom = prompt("Enter custom category:");
+    if (custom && !availableCategories.includes(custom)) {
+      setAvailableCategories(prev => [...prev, custom]);
+      setCategory(custom);
+    }
+  };
+
+  // Fixed missing loadSession function
+  const loadSession = (session: SavedSession) => {
+    setTranscriptions(session.transcriptions);
+    setLanguage(session.language);
+    setMode(session.mode);
+    setCategory(session.category);
+    setDailyTopic(session.dailyTopic);
+    setCurrentEvaluation(session.evaluation || null);
     if (status.isConnected) {
       cleanup();
-    } else {
-      startSession();
     }
   };
 
-  useEffect(() => {
-    return () => cleanup();
-  }, [cleanup]);
+  // Fixed missing deleteSession function
+  const deleteSession = (id: string) => {
+    setSavedSessions(prev => prev.filter(s => s.id !== id));
+  };
 
   return (
-    <div className="min-h-screen gradient-bg flex flex-col items-center py-12 px-4 sm:px-8 relative">
-      {window.aistudio && (
-        <button 
-          onClick={changeApiKey}
-          className="absolute top-4 right-4 text-xs font-mono text-slate-500 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-all"
-        >
-          Change API Key
-        </button>
-      )}
-
+    <div className="min-h-screen gradient-bg flex flex-col items-center py-10 px-4 sm:px-6 text-slate-200">
       {/* Header */}
-      <header className="mb-8 text-center">
-        <div className="flex items-center justify-center gap-3 mb-2">
-          <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-900/40">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+      <header className="w-full max-w-6xl flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-900/40">
+            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            Polyglot AI Coach
-          </h1>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-white uppercase italic">Polyglot Labs</h1>
+            <p className="text-[10px] text-blue-400 font-black uppercase tracking-[0.3em]">Neural Linguistic Forge</p>
+          </div>
         </div>
-        <p className="text-slate-400 text-sm max-w-md mx-auto">
-          Immersive language practice with real-time feedback and situational roleplay.
-        </p>
+        
+        <div className="flex gap-3">
+          <div className="px-4 py-2 bg-slate-900/60 border border-slate-700/50 rounded-2xl flex items-center gap-2">
+             <div className={`w-2 h-2 rounded-full ${status.isConnected ? 'bg-green-500 animate-pulse' : 'bg-slate-700'}`}></div>
+             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+               {status.isConnected ? (isChallengeMode ? 'Assessment Link' : 'Immersion Link') : 'Link Offline'}
+             </span>
+          </div>
+        </div>
       </header>
 
-      {/* Main Interaction Area */}
-      <main className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch mb-12">
-        
-        {/* Left Column: Controls (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
+      {/* Main Grid */}
+      <main className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
+        <div className="lg:col-span-4 space-y-6">
           <ControlPanel
             isConnecting={status.isConnecting}
             isConnected={status.isConnected}
-            onToggle={toggleSession}
+            onToggle={() => status.isConnected ? cleanup() : startSession()}
             selectedVoice={voice}
             onVoiceChange={setVoice}
             selectedLanguage={language}
@@ -422,76 +413,75 @@ const App: React.FC = () => {
             onModeChange={setMode}
             selectedSituation={situation}
             onSituationChange={setSituation}
+            selectedCategory={category}
+            onCategoryChange={setCategory}
+            availableCategories={availableCategories}
+            onAddCategory={handleAddCategory}
+            selectedDailyTopic={dailyTopic}
+            onDailyTopicChange={setDailyTopic}
+            isChallengeMode={isChallengeMode}
+            onChallengeToggle={setIsChallengeMode}
           />
-
-          <div className="flex flex-col gap-4 p-6 bg-slate-800/30 rounded-2xl border border-slate-700/50 flex-grow min-h-[200px]">
-            <div className="flex justify-between items-center px-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Signal</span>
-              <div className="flex gap-2">
-                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
-                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse delay-75"></div>
-              </div>
-            </div>
-            <div className="space-y-2 flex flex-col justify-center h-full">
-              <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
-              <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#6366f1" />
+          
+          <div className="p-5 bg-slate-950/40 rounded-[2rem] border border-slate-800 backdrop-blur-md">
+            <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">Neural Feedback</h3>
+            <div className="space-y-4">
+              <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#10b981" />
+              <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
             </div>
           </div>
         </div>
 
-        {/* Right Column: Conversation (8 cols) -> Split into Transcripts and Suggestions */}
         <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          
-          {/* Transcript Area (2/3 width on md) */}
-          <div className="md:col-span-2 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider px-1">Live Transcript</h2>
-              {transcriptions.length > 0 && (
+          <div className="md:col-span-2 flex flex-col h-[750px]">
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Live Simulation Transcript</h3>
+              <div className="flex gap-2">
                 <button 
-                  onClick={() => setTranscriptions([])}
-                  className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                  onClick={() => runDiagnostic(transcriptions)}
+                  disabled={transcriptions.length < 4 || isEvaluating}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600/10 border border-emerald-500/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all disabled:opacity-30"
                 >
-                  CLEAR
+                  {isEvaluating ? 'Analyzing...' : 'Run Diagnostic'}
                 </button>
-              )}
-            </div>
-            
-            <TranscriptionView entries={transcriptions} />
-            
-            {status.error && (
-              <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-xl text-red-400 text-sm flex items-start gap-3">
-                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <div className="flex flex-col gap-1">
-                   <strong className="font-semibold">Connection Error</strong>
-                   <p className="text-xs opacity-90">{status.error}</p>
-                   {window.aistudio && (
-                      <button onClick={changeApiKey} className="text-xs underline hover:text-white mt-1 text-left">Update API Key</button>
-                   )}
-                </div>
+                <button 
+                  onClick={saveCurrentSession}
+                  disabled={transcriptions.length === 0}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 border border-blue-500/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-blue-400 hover:bg-blue-600 hover:text-white transition-all disabled:opacity-30"
+                >
+                  Save State
+                </button>
               </div>
-            )}
+            </div>
+            <TranscriptionView entries={transcriptions} />
           </div>
-
-          {/* Suggestions Area (1/3 width on md) */}
-          <div className="md:col-span-1 h-full min-h-[300px]">
+          <div className="md:col-span-1">
              <SuggestionPanel 
                 suggestions={suggestions} 
                 isLoading={isGeneratingSuggestions} 
-                onSelect={() => {}} 
+                error={suggestionError}
+                onSelect={playTTS}
+                isPlaying={isPlayingTTS}
              />
           </div>
         </div>
       </main>
 
-      {/* Professional Profile Sections (Still relevant as the 'Persona' user might be) */}
-      <SkillsAndInterests />
-      <WorkExperience />
-      <Education />
-      <ProjectShowcase />
-      <Testimonials />
-      <ContactSection />
+      <HistoryPanel 
+        sessions={savedSessions} 
+        onLoad={(s) => loadSession(s)} 
+        onDelete={(id) => deleteSession(id)} 
+      />
+
+      {/* Diagnostics Modal */}
+      {currentEvaluation && (
+        <DiagnosticView evaluation={currentEvaluation} onClose={() => setCurrentEvaluation(null)} />
+      )}
+
+      {/* Footer Branding */}
+      <footer className="mt-20 py-10 border-t border-slate-800/30 w-full flex flex-col items-center gap-4">
+         <span className="text-[10px] text-slate-600 font-black tracking-[0.4em] uppercase">Gemini 2.5 Multi-Modal Adaptive Learning Engine</span>
+      </footer>
     </div>
   );
 };
