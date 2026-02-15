@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
-import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule } from './types';
+import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule, StudyCondition, LearnedTerm } from './types';
 import { createBlob, decode, decodeAudioData } from './services/audioService';
 import ControlPanel from './components/ControlPanel';
 import TranscriptionView from './components/TranscriptionView';
@@ -118,12 +118,16 @@ const App: React.FC = () => {
   const [certificationTopic, setCertificationTopic] = useState<string>(CERTIFICATION_TOPICS[0]);
   const [availableCertTopics, setAvailableCertTopics] = useState<string[]>(CERTIFICATION_TOPICS);
   
+  const [condition, setCondition] = useState<StudyCondition>(StudyCondition.STANDARD);
+
   const [isChallengeMode, setIsChallengeMode] = useState(false);
   const [isVisionEnabled, setIsVisionEnabled] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   
   const [transcriptions, setTranscriptions] = useState<TranscriptionEntry[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // Added learnedTerms state to fix missing prop in SuggestionPanel
+  const [learnedTerms, setLearnedTerms] = useState<LearnedTerm[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [currentEvaluation, setCurrentEvaluation] = useState<LinguisticEvaluation | null>(null);
@@ -131,7 +135,6 @@ const App: React.FC = () => {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // New States for Summary
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [studySummary, setStudySummary] = useState<string | null>(null);
 
@@ -147,6 +150,10 @@ const App: React.FC = () => {
   
   const languageRef = useRef(language);
   useEffect(() => { languageRef.current = language; }, [language]);
+
+  // Added modeRef to track current state in async callbacks
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   const currentInputTranscription = useRef('');
   const currentOutputTranscription = useRef('');
@@ -200,12 +207,12 @@ const App: React.FC = () => {
   const handleFinishStudy = async () => {
     if (transcriptions.length === 0) return;
     setIsSummarizing(true);
-    cleanup(); // Stop session first
+    cleanup();
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const historyText = transcriptions.map(e => `[${e.role}] ${e.text}`).join('\n');
-      const prompt = `Based on the following study session for the "${certificationTopic}" certification, please generate a structured study report in ${languageRef.current}.
+      const prompt = `Based on the following study session for the "${certificationTopic}" certification (${condition} mode), please generate a structured study report in ${languageRef.current}.
       Include:
       1. Overall Summary of the session.
       2. Key Concepts & Technical Terms learned.
@@ -248,15 +255,24 @@ const App: React.FC = () => {
     setIsSuggestionsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Based on the conversation context in ${languageRef.current}, provide 3 natural response suggestions for the user in ${languageRef.current}. Return as JSON array of strings.`;
+      // Logic for providing context-aware suggestions or concept extractions
+      const isStudyMode = modeRef.current === PracticeMode.CERTIFICATION;
+      const prompt = isStudyMode 
+        ? `Based on this study session about ${certificationTopic}, extract 3-4 key technical terms or concepts discussed and provide a concise definition for each in ${languageRef.current}. Return as a JSON array of objects: [{"term": "...", "definition": "..."}]`
+        : `Based on the conversation context in ${languageRef.current}, provide 3 natural response suggestions for the user in ${languageRef.current}. Return as JSON array of strings: ["...", "...", "..."]`;
+
       const response = await ai.models.generateContent({
         model: EVALUATION_MODEL_NAME,
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
       const result = JSON.parse(response.text || "[]");
-      setSuggestions(result);
-    } catch (e) { console.error(e); } finally { setIsSuggestionsLoading(false); }
+      if (isStudyMode) {
+        setLearnedTerms(result);
+      } else {
+        setSuggestions(result);
+      }
+    } catch (e) { console.error("Suggestion fetch error:", e); } finally { setIsSuggestionsLoading(false); }
   };
 
   const startSession = async () => {
@@ -325,6 +341,7 @@ const App: React.FC = () => {
               source.buffer = buffer;
               source.connect(outputAnalyserRef.current!);
               outputAnalyserRef.current!.connect(output.destination);
+              source.addEventListener('ended', () => sourcesRef.current.delete(source));
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += buffer.duration;
               sourcesRef.current.add(source);
@@ -337,8 +354,8 @@ const App: React.FC = () => {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
           systemInstruction: mode === PracticeMode.CERTIFICATION 
-            ? `You are an expert instructor for the ${certificationTopic} certification. Help the user study in ${languageRef.current}.`
-            : `You are a coach. Scenario: ${mode}. Focus: ${category}. Language: ${languageRef.current}.`,
+            ? `You are an expert instructor for the ${certificationTopic} certification. Target condition: ${condition}. Help the user study and explain concepts clearly in ${languageRef.current}.`
+            : `You are a coach. Condition: ${condition}. Scenario: ${mode}. Focus: ${category}. Language: ${languageRef.current}.`,
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
@@ -411,6 +428,7 @@ const App: React.FC = () => {
           <ControlPanel
             isConnecting={status.isConnecting} isConnected={status.isConnected}
             onToggle={() => status.isConnected ? cleanup() : startSession()}
+            onFinishStudy={handleFinishStudy} isSummarizing={isSummarizing}
             selectedVoice={voice} onVoiceChange={setVoice}
             selectedLanguage={language} onLanguageChange={setLanguage}
             selectedMode={mode} onModeChange={setMode}
@@ -421,6 +439,7 @@ const App: React.FC = () => {
             availableDailyTopics={availableDailyTopics} onAddDailyTopic={() => {}}
             selectedCertTopic={certificationTopic} onCertTopicChange={setCertificationTopic}
             availableCertTopics={availableCertTopics} onAddCertTopic={() => {}}
+            selectedCondition={condition} onConditionChange={setCondition}
             isChallengeMode={isChallengeMode} onChallengeToggle={setIsChallengeMode}
           />
           <VisionPreview stream={cameraStream} isActive={isVisionEnabled} />
@@ -445,9 +464,19 @@ const App: React.FC = () => {
                    </button>
                 </div>
               </div>
-              <TranscriptionView entries={transcriptions} lang={language} />
+              <TranscriptionView entries={transcriptions} lang={language} mode={mode} />
             </div>
-            <SuggestionPanel suggestions={suggestions} isLoading={isSuggestionsLoading} error={null} onSelect={() => {}} isPlaying={null} lang={language} />
+            {/* Fixed missing props: added learnedTerms and mode */}
+            <SuggestionPanel 
+              suggestions={suggestions} 
+              learnedTerms={learnedTerms}
+              isLoading={isSuggestionsLoading} 
+              error={null} 
+              onSelect={() => {}} 
+              isPlaying={null} 
+              lang={language} 
+              mode={mode}
+            />
           </div>
           
           <div className="p-8 bg-slate-950/60 rounded-[2.5rem] border border-slate-800 shadow-xl grid grid-cols-1 md:grid-cols-2 gap-12">

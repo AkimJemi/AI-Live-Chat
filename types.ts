@@ -5,28 +5,19 @@ export interface TranscriptionEntry {
   timestamp: number;
 }
 
+export interface LearnedTerm {
+  term: string;
+  definition: string;
+}
+
+// Added MissionObjective interface for MissionPanel component
 export interface MissionObjective {
   id: string;
   description: string;
   isCompleted: boolean;
 }
 
-export interface BkimTask {
-  time: string;
-  task: string;
-  priority: 'High' | 'Med' | 'Low';
-  status: 'pending' | 'active' | 'done';
-}
-
-export interface BkimSchedule {
-  protocolId: string;
-  dailySchedule: BkimTask[];
-  executionPrep: {
-    item: string;
-    ready: boolean;
-  }[];
-}
-
+// Added LinguisticEvaluation interface for DiagnosticView component
 export interface LinguisticEvaluation {
   grammarScore: number;
   vocabularyScore: number;
@@ -37,17 +28,39 @@ export interface LinguisticEvaluation {
   suggestedImprovement: string;
 }
 
+// Added BkimSchedule interface for BkimProtocolView component
+export interface BkimSchedule {
+  protocolId: string;
+  dailySchedule: {
+    time: string;
+    task: string;
+    priority: string;
+    status: string;
+  }[];
+  executionPrep: {
+    item: string;
+    ready: boolean;
+  }[];
+}
+
 export interface SavedSession {
   id: string;
+  userId: string; // ユーザー識別子を追加
   timestamp: number;
   language: Language;
   mode: PracticeMode;
-  category: string;
-  dailyTopic: string;
-  certificationTopic: string;
+  condition: StudyCondition;
+  topic: string;
   transcriptions: TranscriptionEntry[];
-  preview: string;
-  evaluation?: LinguisticEvaluation;
+  learnedTerms: LearnedTerm[];
+  summary: string;
+  isSynced: boolean; // クラウド同期状態
+}
+
+export interface SessionStatus {
+  isConnected: boolean;
+  isConnecting: boolean;
+  error: string | null;
 }
 
 export enum VoiceName {
@@ -69,6 +82,14 @@ export enum PracticeMode {
   DAILY = 'Daily Conversation',
   BUSINESS = 'Business',
   CERTIFICATION = 'Certification Study'
+}
+
+export enum StudyCondition {
+  STANDARD = 'Standard',
+  INTENSIVE = 'Intensive Drill',
+  VOCABULARY = 'Vocabulary Focus',
+  STRICT = 'Strict Feedback',
+  EXPLAIN = 'Deep Explanation'
 }
 
 export enum BusinessSituation {
@@ -106,9 +127,3 @@ export const CERTIFICATION_TOPICS = [
   'Azure Fundamentals',
   'Google Cloud Professional Data Engineer'
 ];
-
-export interface SessionStatus {
-  isConnected: boolean;
-  isConnecting: boolean;
-  error: string | null;
-}

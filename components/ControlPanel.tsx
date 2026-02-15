@@ -1,11 +1,13 @@
 
 import React from 'react';
-import { VoiceName, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS } from '../types';
+import { VoiceName, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS, StudyCondition } from '../types';
 
 interface ControlPanelProps {
   isConnecting: boolean;
   isConnected: boolean;
   onToggle: () => void;
+  onFinishStudy?: () => void;
+  isSummarizing?: boolean;
   selectedVoice: VoiceName;
   onVoiceChange: (voice: VoiceName) => void;
   selectedLanguage: Language;
@@ -26,118 +28,108 @@ interface ControlPanelProps {
   onCertTopicChange: (topic: string) => void;
   availableCertTopics: string[];
   onAddCertTopic: () => void;
+  selectedCondition: StudyCondition;
+  onConditionChange: (cond: StudyCondition) => void;
   isChallengeMode: boolean;
   onChallengeToggle: (val: boolean) => void;
 }
 
 const CONTROL_LOCALIZATION: Record<Language, any> = {
   [Language.ENGLISH]: {
-    targetLang: "Target",
-    simType: "Simulation Setting",
+    targetLang: "Target Language",
+    simType: "Mode Select",
     casual: "Daily",
     pro: "Business",
     study: "Study",
-    scenarios: "Scenarios",
+    scenarios: "Scenario",
     domain: "Domain",
-    exams: "Certifications",
-    start: "Start Immersion",
+    situation: "Situation",
+    exams: "Topic",
+    modifiers: "Condition",
+    start: "Start Training",
     sync: "Syncing...",
-    neuralActive: "Active",
-    challengeTitle: "Diagnostic Protocol",
-    trainingTitle: "Learning Protocol",
-    challengeDesc: "Examiner mode.",
-    trainingDesc: "Coach mode."
+    neuralActive: "Linked",
+    finish: "Commit to DB",
+    trainingTitle: "Study Protocol"
   },
   [Language.JAPANESE]: {
-    targetLang: "対象言語",
-    simType: "シミュレーション設定",
+    targetLang: "学習言語",
+    simType: "学習モード",
     casual: "日常会話",
     pro: "ビジネス",
-    study: "資格勉強",
-    scenarios: "シナリオ",
-    domain: "分野",
-    exams: "対象資格",
+    study: "資格・専門",
+    scenarios: "シナリオ選択",
+    domain: "ビジネス分野",
+    situation: "状況設定",
+    exams: "専門トピック",
+    modifiers: "学習コンディション",
     start: "トレーニング開始",
     sync: "同期中...",
-    neuralActive: "有効",
-    challengeTitle: "診断プロトコル",
-    trainingTitle: "学習プロトコル",
-    challengeDesc: "試験官モード。",
-    trainingDesc: "コーチモード。"
+    neuralActive: "リンク中",
+    finish: "セッション終了・保存",
+    trainingTitle: "学習プロトコル"
   },
   [Language.CHINESE]: {
     targetLang: "目标语言",
-    simType: "模拟设置",
+    simType: "模式选择",
     casual: "日常",
     pro: "商务",
-    study: "考试学习",
+    study: "学术",
     scenarios: "场景",
     domain: "领域",
-    exams: "证书",
-    start: "开始沉浸",
+    situation: "场合",
+    exams: "课题",
+    modifiers: "附加条件",
+    start: "开始训练",
     sync: "同步中...",
-    neuralActive: "激活",
-    challengeTitle: "诊断协议",
-    trainingTitle: "学习协议",
-    challengeDesc: "考官模式。",
-    trainingDesc: "教练模式。"
+    neuralActive: "已连接",
+    finish: "保存会话",
+    trainingTitle: "学习协议"
   },
   [Language.KOREAN]: {
     targetLang: "대상 언어",
-    simType: "시뮬레이션 설정",
+    simType: "모드 선택",
     casual: "일상",
     pro: "비즈니스",
-    study: "자격증 공부",
+    study: "자격증",
     scenarios: "시나리오",
     domain: "분야",
-    exams: "자격증",
-    start: "몰입 시작",
+    situation: "상황",
+    exams: "시험 주제",
+    modifiers: "학습 조건",
+    start: "훈련 시작",
     sync: "동기화 중...",
-    neuralActive: "활성",
-    challengeTitle: "진단 프로토콜",
-    trainingTitle: "학습 프로토콜",
-    challengeDesc: "시험관 모드。",
-    trainingDesc: "코치 모드。"
+    neuralActive: "연결됨",
+    finish: "학습 완료 및 저장",
+    trainingTitle: "학습 프로토콜"
   }
 };
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
-  isConnecting, isConnected, onToggle,
+  isConnecting, isConnected, onToggle, onFinishStudy, isSummarizing,
   selectedLanguage, onLanguageChange,
   selectedMode, onModeChange,
+  selectedSituation, onSituationChange,
   selectedCategory, onCategoryChange,
   availableCategories, onAddCategory,
   selectedDailyTopic, onDailyTopicChange,
   availableDailyTopics, onAddDailyTopic,
   selectedCertTopic, onCertTopicChange,
   availableCertTopics, onAddCertTopic,
-  isChallengeMode, onChallengeToggle,
+  selectedCondition, onConditionChange,
 }) => {
   const loc = CONTROL_LOCALIZATION[selectedLanguage] || CONTROL_LOCALIZATION[Language.ENGLISH];
-
-  const getDropdownConfig = () => {
-    switch(selectedMode) {
-      case PracticeMode.DAILY:
-        return { label: loc.scenarios, value: selectedDailyTopic, onChange: onDailyTopicChange, options: availableDailyTopics, onAdd: onAddDailyTopic };
-      case PracticeMode.BUSINESS:
-        return { label: loc.domain, value: selectedCategory, onChange: onCategoryChange, options: availableCategories, onAdd: onAddCategory };
-      case PracticeMode.CERTIFICATION:
-        return { label: loc.exams, value: selectedCertTopic, onChange: onCertTopicChange, options: availableCertTopics, onAdd: onAddCertTopic };
-    }
-  };
-
-  const config = getDropdownConfig();
 
   return (
     <div className="flex flex-col gap-6 p-6 md:p-8 bg-slate-800/40 rounded-[2.5rem] border border-slate-700 shadow-2xl backdrop-blur-md">
       
-      {/* Connection Button */}
+      {/* 接続ボタン */}
       <div className="flex flex-col items-center gap-4 py-2">
         <button 
           onClick={onToggle} 
           disabled={isConnecting}
-          className={`relative flex items-center justify-center w-24 h-24 md:w-28 md:h-28 rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-2xl p-0 ${
-            isConnected ? 'bg-red-500 shadow-red-900/40' : 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-900/40'
+          className={`relative flex items-center justify-center w-24 h-24 md:w-28 md:h-28 rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-2xl ${
+            isConnected ? 'bg-rose-500 shadow-rose-900/40' : 'bg-gradient-to-br from-emerald-600 to-teal-700 shadow-emerald-900/40'
           } disabled:opacity-50`}
         >
           {isConnecting ? (
@@ -157,11 +149,22 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
           {isConnecting ? loc.sync : isConnected ? loc.neuralActive : loc.start}
         </span>
+
+        {/* 保存ボタン */}
+        {isConnected && onFinishStudy && (
+          <button 
+            onClick={onFinishStudy}
+            disabled={isSummarizing}
+            className="w-full mt-2 py-3 bg-blue-500/20 border border-blue-500/50 rounded-2xl text-[10px] font-black text-blue-400 uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-lg flex items-center justify-center gap-2"
+          >
+            {isSummarizing ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : loc.finish}
+          </button>
+        )}
       </div>
 
       <div className="h-px bg-slate-700/50 w-full"></div>
 
-      {/* Language */}
+      {/* 言語設定 */}
       <div className="space-y-3">
         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block ml-1">{loc.targetLang}</label>
         <div className="grid grid-cols-2 gap-2">
@@ -170,7 +173,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               key={lang}
               onClick={() => onLanguageChange(lang)}
               className={`px-3 py-2 text-[10px] font-bold rounded-xl border transition-all ${
-                selectedLanguage === lang ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-900/60 border-slate-700 text-slate-500 hover:border-slate-500'
+                selectedLanguage === lang ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900/60 border-slate-700 text-slate-500'
               }`}
             >
               {lang}
@@ -179,79 +182,86 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       </div>
 
-      {/* Mode Selector - 3 Options Now */}
+      {/* モード切替 */}
       <div className="space-y-3">
         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block ml-1">{loc.simType}</label>
         <div className="grid grid-cols-3 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-700">
-          <button
-            onClick={() => onModeChange(PracticeMode.DAILY)}
-            className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${
-              selectedMode === PracticeMode.DAILY ? 'bg-slate-800 text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            {loc.casual}
-          </button>
-          <button
-            onClick={() => onModeChange(PracticeMode.BUSINESS)}
-            className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${
-              selectedMode === PracticeMode.BUSINESS ? 'bg-slate-800 text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            {loc.pro}
-          </button>
-          <button
-            onClick={() => onModeChange(PracticeMode.CERTIFICATION)}
-            className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${
-              selectedMode === PracticeMode.CERTIFICATION ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            {loc.study}
-          </button>
+          {[PracticeMode.DAILY, PracticeMode.BUSINESS, PracticeMode.CERTIFICATION].map(m => (
+            <button
+              key={m}
+              onClick={() => onModeChange(m)}
+              className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                selectedMode === m ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              {m === PracticeMode.DAILY ? loc.casual : m === PracticeMode.BUSINESS ? loc.pro : loc.study}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Context Selection Dropdown */}
-      <div className="space-y-3">
-        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block ml-1">
-          {config.label}
-        </label>
-        <select
-          value={config.value}
-          onChange={(e) => config.onChange(e.target.value)}
-          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs font-bold text-slate-200 outline-none focus:border-blue-500 transition-all appearance-none"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\' /%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
-        >
-          {config.options.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-        <button 
-          onClick={config.onAdd}
-          className="text-[9px] font-black text-blue-500/60 uppercase tracking-widest hover:text-blue-400 transition-colors ml-1"
-        >
-          + Add Custom
-        </button>
-      </div>
-
-      <div className="h-px bg-slate-700/50 w-full"></div>
-
-      {/* Challenge Toggle */}
-      <div className="space-y-4">
-        <div 
-          onClick={() => onChallengeToggle(!isChallengeMode)}
-          className={`p-4 rounded-2xl border cursor-pointer transition-all duration-300 ${
-            isChallengeMode ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-slate-900/40 border-slate-800 opacity-60'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className={`text-[10px] font-black uppercase tracking-widest ${isChallengeMode ? 'text-emerald-400' : 'text-slate-500'}`}>
-              {isChallengeMode ? loc.challengeTitle : loc.trainingTitle}
-            </span>
-            <div className={`w-8 h-4 rounded-full relative transition-colors ${isChallengeMode ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-              <div className="absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all" style={{ left: isChallengeMode ? '1.125rem' : '0.125rem' }}></div>
-            </div>
+      {/* 詳細トピック設定 */}
+      <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+        {selectedMode === PracticeMode.DAILY && (
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.scenarios}</label>
+            <select
+              value={selectedDailyTopic}
+              onChange={(e) => onDailyTopicChange(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs font-bold text-slate-200 outline-none focus:border-emerald-500 transition-all appearance-none"
+            >
+              {availableDailyTopics.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
-          <p className="text-[10px] text-slate-400 leading-relaxed italic">
-            {isChallengeMode ? loc.challengeDesc : loc.trainingDesc}
-          </p>
+        )}
+
+        {selectedMode === PracticeMode.BUSINESS && (
+          <>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.domain}</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => onCategoryChange(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs font-bold text-slate-200 outline-none focus:border-indigo-500"
+              >
+                {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.situation}</label>
+              <select
+                value={selectedSituation}
+                onChange={(e) => onSituationChange(e.target.value as BusinessSituation)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs font-bold text-slate-200 outline-none focus:border-indigo-500"
+              >
+                {Object.values(BusinessSituation).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </>
+        )}
+
+        {selectedMode === PracticeMode.CERTIFICATION && (
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.exams}</label>
+            <select
+              value={selectedCertTopic}
+              onChange={(e) => onCertTopicChange(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs font-bold text-slate-200 outline-none focus:border-emerald-500"
+            >
+              {availableCertTopics.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.modifiers}</label>
+          <select
+            value={selectedCondition}
+            onChange={(e) => onConditionChange(e.target.value as StudyCondition)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs font-bold text-slate-200 outline-none focus:border-teal-500"
+          >
+            {Object.values(StudyCondition).map(cond => <option key={cond} value={cond}>{cond}</option>)}
+          </select>
         </div>
       </div>
     </div>

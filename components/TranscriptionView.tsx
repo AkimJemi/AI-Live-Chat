@@ -1,9 +1,11 @@
+
 import React, { useEffect, useRef } from 'react';
-import { TranscriptionEntry, Language } from '../types';
+import { TranscriptionEntry, Language, PracticeMode } from '../types';
 
 interface TranscriptionViewProps {
   entries: TranscriptionEntry[];
   lang: Language;
+  mode: PracticeMode;
 }
 
 const LOCAL_CONTENT: Record<Language, any> = {
@@ -33,19 +35,27 @@ const LOCAL_CONTENT: Record<Language, any> = {
   }
 };
 
-const TranscriptionView: React.FC<TranscriptionViewProps> = ({ entries, lang }) => {
+const TranscriptionView: React.FC<TranscriptionViewProps> = ({ entries, lang, mode }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const t = LOCAL_CONTENT[lang] || LOCAL_CONTENT[Language.ENGLISH];
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [entries]);
 
-  if (entries.length === 0) {
+  // Filter out user messages if in Certification Study mode
+  const displayEntries = mode === PracticeMode.CERTIFICATION 
+    ? entries.filter(entry => entry.role === 'model') 
+    : entries;
+
+  if (displayEntries.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[300px] md:min-h-[500px] text-slate-500 italic opacity-40 p-6 md:p-12 text-center border-2 border-dashed border-slate-800 rounded-[1.5rem] md:rounded-[2.5rem] bg-slate-950/20">
+      <div className="flex flex-col items-center justify-center h-full text-slate-500 italic opacity-40 p-6 md:p-12 text-center border-2 border-dashed border-slate-800 rounded-[1.5rem] md:rounded-[2.5rem] bg-slate-950/20">
         <svg className="w-10 h-10 md:w-12 md:h-12 mb-4 md:mb-6 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
@@ -58,27 +68,34 @@ const TranscriptionView: React.FC<TranscriptionViewProps> = ({ entries, lang }) 
   return (
     <div
       ref={scrollRef}
-      className="flex flex-col gap-4 md:gap-6 overflow-y-auto h-full max-h-[400px] md:max-h-[500px] p-4 md:p-8 bg-slate-950/40 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800 scroll-smooth custom-scrollbar"
+      className="flex flex-col gap-4 md:gap-8 overflow-y-auto h-full p-4 md:p-8 bg-slate-950/40 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-800 scroll-smooth custom-scrollbar"
     >
-      {entries.map((entry, idx) => (
+      {displayEntries.map((entry, idx) => (
         <div
           key={`${entry.timestamp}-${idx}`}
-          className={`flex flex-col max-w-[95%] md:max-w-[90%] ${entry.role === 'user' ? 'self-end items-end' : 'self-start items-start'} animate-in slide-in-from-bottom-2 duration-300`}
+          className={`flex flex-col max-w-[95%] md:max-w-[85%] ${entry.role === 'user' ? 'self-end items-end' : 'self-start items-start'} animate-in slide-in-from-bottom-2 duration-500`}
         >
-          <span className={`text-[8px] md:text-[10px] uppercase font-black mb-1 md:mb-1.5 tracking-widest ${entry.role === 'user' ? 'text-blue-500' : 'text-slate-500'}`}>
-            {entry.role === 'user' ? t.user : t.model}
-          </span>
+          <div className="flex items-center gap-2 mb-2 px-1">
+             <span className={`text-[8px] md:text-[10px] uppercase font-black tracking-widest ${entry.role === 'user' ? 'text-blue-500' : 'text-slate-500'}`}>
+              {entry.role === 'user' ? t.user : t.model}
+            </span>
+            <span className="text-[8px] text-slate-700 font-mono">
+              {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
           <div
-            className={`px-4 md:px-5 py-2 md:py-3 rounded-[1.2rem] md:rounded-[1.5rem] text-xs md:text-[13px] leading-relaxed shadow-lg ${
+            className={`px-5 md:px-7 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] text-sm md:text-[15px] leading-relaxed shadow-xl border ${
               entry.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tr-none'
-                : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none'
+                ? 'bg-blue-600 border-blue-500 text-white rounded-tr-none'
+                : 'bg-slate-800/80 border-slate-700 text-slate-100 rounded-tl-none'
             }`}
           >
             {entry.text}
           </div>
         </div>
       ))}
+      {/* 最後のメッセージが見えるように少し余白を確保 */}
+      <div className="min-h-[40px] w-full" />
     </div>
   );
 };
