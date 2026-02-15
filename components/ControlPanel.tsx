@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { VoiceName, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS, StudyCondition } from '../types';
+import { VoiceName, Language, PracticeMode, BusinessSituation, BusinessCategory, StudyCondition } from '../types';
 
 interface ControlPanelProps {
   isConnecting: boolean;
@@ -46,11 +46,12 @@ const CONTROL_LOCALIZATION: Record<Language, any> = {
     situation: "Situation",
     exams: "Topic",
     modifiers: "Condition",
-    start: "Start Training",
+    start: "Start Link",
     sync: "Syncing...",
-    neuralActive: "Linked",
-    finish: "Commit to DB",
-    trainingTitle: "Study Protocol"
+    neuralActive: "Active",
+    finish: "Archive State",
+    trainingTitle: "Study Protocol",
+    addNew: "+ New"
   },
   [Language.JAPANESE]: {
     targetLang: "学習言語",
@@ -63,11 +64,12 @@ const CONTROL_LOCALIZATION: Record<Language, any> = {
     situation: "状況設定",
     exams: "専門トピック",
     modifiers: "学習コンディション",
-    start: "トレーニング開始",
+    start: "ニューラル接続",
     sync: "同期中...",
-    neuralActive: "リンク中",
-    finish: "セッション終了・保存",
-    trainingTitle: "学習プロトコル"
+    neuralActive: "通信中",
+    finish: "アーカイブ保存",
+    trainingTitle: "学習プロトコル",
+    addNew: "+ 追加"
   },
   [Language.CHINESE]: {
     targetLang: "目标语言",
@@ -80,11 +82,12 @@ const CONTROL_LOCALIZATION: Record<Language, any> = {
     situation: "场合",
     exams: "课题",
     modifiers: "附加条件",
-    start: "开始训练",
+    start: "启动链接",
     sync: "同步中...",
-    neuralActive: "已连接",
-    finish: "保存会话",
-    trainingTitle: "学习协议"
+    neuralActive: "已激活",
+    finish: "保存存档",
+    trainingTitle: "学习协议",
+    addNew: "+ 新增"
   },
   [Language.KOREAN]: {
     targetLang: "대상 언어",
@@ -97,11 +100,12 @@ const CONTROL_LOCALIZATION: Record<Language, any> = {
     situation: "상황",
     exams: "시험 주제",
     modifiers: "학습 조건",
-    start: "훈련 시작",
+    start: "링크 시작",
     sync: "동기화 중...",
-    neuralActive: "연결됨",
-    finish: "학습 완료 및 저장",
-    trainingTitle: "학습 프로토콜"
+    neuralActive: "활성화됨",
+    finish: "기록 보관",
+    trainingTitle: "학습 프로토콜",
+    addNew: "+ 추가"
   }
 };
 
@@ -123,24 +127,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   return (
     <div className="flex flex-col gap-6 p-6 md:p-8 bg-slate-800/40 rounded-[2.5rem] border border-slate-700 shadow-2xl backdrop-blur-md">
       
-      {/* 接続ボタン */}
+      {/* Power Core */}
       <div className="flex flex-col items-center gap-4 py-2">
         <button 
           onClick={onToggle} 
           disabled={isConnecting}
-          className={`relative flex items-center justify-center w-24 h-24 md:w-28 md:h-28 rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-2xl ${
+          className={`relative flex items-center justify-center w-28 h-28 rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-2xl ${
             isConnected ? 'bg-rose-500 shadow-rose-900/40' : 'bg-gradient-to-br from-emerald-600 to-teal-700 shadow-emerald-900/40'
           } disabled:opacity-50`}
         >
           {isConnecting ? (
-            <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin" />
           ) : isConnected ? (
             <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-8 bg-white rounded-full" />
-              <div className="w-2.5 h-8 bg-white rounded-full" />
+              <div className="w-2.5 h-10 bg-white rounded-full" />
+              <div className="w-2.5 h-10 bg-white rounded-full" />
             </div>
           ) : (
-            <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-14 h-14 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
               <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
             </svg>
@@ -149,22 +153,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
           {isConnecting ? loc.sync : isConnected ? loc.neuralActive : loc.start}
         </span>
-
-        {/* 保存ボタン */}
-        {isConnected && onFinishStudy && (
-          <button 
-            onClick={onFinishStudy}
-            disabled={isSummarizing}
-            className="w-full mt-2 py-3 bg-blue-500/20 border border-blue-500/50 rounded-2xl text-[10px] font-black text-blue-400 uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-lg flex items-center justify-center gap-2"
-          >
-            {isSummarizing ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : loc.finish}
-          </button>
-        )}
       </div>
 
       <div className="h-px bg-slate-700/50 w-full"></div>
 
-      {/* 言語設定 */}
+      {/* Language Engine */}
       <div className="space-y-3">
         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block ml-1">{loc.targetLang}</label>
         <div className="grid grid-cols-2 gap-2">
@@ -173,7 +166,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               key={lang}
               onClick={() => onLanguageChange(lang)}
               className={`px-3 py-2 text-[10px] font-bold rounded-xl border transition-all ${
-                selectedLanguage === lang ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900/60 border-slate-700 text-slate-500'
+                selectedLanguage === lang ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900/60 border-slate-700 text-slate-500 hover:text-slate-300'
               }`}
             >
               {lang}
@@ -182,16 +175,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       </div>
 
-      {/* モード切替 */}
+      {/* Protocol Core */}
       <div className="space-y-3">
         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block ml-1">{loc.simType}</label>
-        <div className="grid grid-cols-3 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-700">
+        <div className="grid grid-cols-1 gap-2">
           {[PracticeMode.DAILY, PracticeMode.BUSINESS, PracticeMode.CERTIFICATION].map(m => (
             <button
               key={m}
               onClick={() => onModeChange(m)}
-              className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${
-                selectedMode === m ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500'
+              className={`py-3 px-4 text-left text-[11px] font-black uppercase tracking-widest rounded-xl border transition-all ${
+                selectedMode === m ? 'bg-slate-800 border-emerald-500/50 text-emerald-400 shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'
               }`}
             >
               {m === PracticeMode.DAILY ? loc.casual : m === PracticeMode.BUSINESS ? loc.pro : loc.study}
@@ -200,11 +193,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       </div>
 
-      {/* 詳細トピック設定 */}
+      {/* Detailed Tuning */}
       <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
         {selectedMode === PracticeMode.DAILY && (
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.scenarios}</label>
+            <div className="flex justify-between items-center ml-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{loc.scenarios}</label>
+              <button onClick={onAddDailyTopic} className="text-[9px] text-emerald-500 font-bold hover:underline">{loc.addNew}</button>
+            </div>
             <select
               value={selectedDailyTopic}
               onChange={(e) => onDailyTopicChange(e.target.value)}
@@ -218,7 +214,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         {selectedMode === PracticeMode.BUSINESS && (
           <>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.domain}</label>
+              <div className="flex justify-between items-center ml-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{loc.domain}</label>
+                <button onClick={onAddCategory} className="text-[9px] text-indigo-500 font-bold hover:underline">{loc.addNew}</button>
+              </div>
               <select
                 value={selectedCategory}
                 onChange={(e) => onCategoryChange(e.target.value)}
@@ -242,7 +241,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {selectedMode === PracticeMode.CERTIFICATION && (
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{loc.exams}</label>
+            <div className="flex justify-between items-center ml-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{loc.exams}</label>
+              <button onClick={onAddCertTopic} className="text-[9px] text-emerald-500 font-bold hover:underline">{loc.addNew}</button>
+            </div>
             <select
               value={selectedCertTopic}
               onChange={(e) => onCertTopicChange(e.target.value)}

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS, SavedSession, LearnedTerm, StudyCondition } from './types';
 import { createBlob, decode, decodeAudioData } from './services/audioService';
 import ControlPanel from './components/ControlPanel';
@@ -27,7 +27,6 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
   [Language.ENGLISH]: {
     appTitle: "Polyglot Labs",
     appSub: "Neural Database Interface",
-    visionLink: "Vision Link",
     uplinkReady: "Awaiting Connection",
     uplinkActive: "Neural Link Established",
     archiveTitle: "Neural Archive [ai_lc_study_sessions]",
@@ -38,7 +37,6 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
   [Language.JAPANESE]: {
     appTitle: "Polyglot Labs",
     appSub: "ニューラル・データベース・インターフェース",
-    visionLink: "ビジョン・リンク",
     uplinkReady: "待機中",
     uplinkActive: "DB同期済み",
     archiveTitle: "学習履歴アーカイブ [ai_lc_study_sessions]",
@@ -49,18 +47,16 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
   [Language.CHINESE]: {
     appTitle: "博学语言实验室",
     appSub: "神经数据库接口",
-    visionLink: "视觉连接",
     uplinkReady: "链路就绪",
     uplinkActive: "数据库已同步",
     archiveTitle: "进步档案 [ai_lc_study_sessions]",
-    archiveDesc: "目标表: " + DB_CONFIG.table,
+    archiveDesc: "目標表: " + DB_CONFIG.table,
     userId: "识别码: ",
     finishBtn: "完成并总结"
   },
   [Language.KOREAN]: {
     appTitle: "폴리그랏 랩스",
     appSub: "뉴럴 데이터베이스 인터페이스",
-    visionLink: "비전 링크",
     uplinkReady: "대기 중",
     uplinkActive: "DB 동기화됨",
     archiveTitle: "학습 기록 보관소 [ai_lc_study_sessions]",
@@ -76,13 +72,12 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>(Language.JAPANESE);
   const [mode, setMode] = useState<PracticeMode>(PracticeMode.CERTIFICATION);
   
-  // 学習プロトコル詳細ステート
   const [category, setCategory] = useState<string>(BusinessCategory.DEVELOPMENT);
-  const [availableCategories] = useState<string[]>(Object.values(BusinessCategory));
+  const [availableCategories, setAvailableCategories] = useState<string[]>(Object.values(BusinessCategory));
   const [dailyTopic, setDailyTopic] = useState<string>(DAILY_TOPICS[0]);
-  const [availableDailyTopics] = useState<string[]>(DAILY_TOPICS);
+  const [availableDailyTopics, setAvailableDailyTopics] = useState<string[]>(DAILY_TOPICS);
   const [certificationTopic, setCertificationTopic] = useState<string>(CERTIFICATION_TOPICS[0]);
-  const [availableCertTopics] = useState<string[]>(CERTIFICATION_TOPICS);
+  const [availableCertTopics, setAvailableCertTopics] = useState<string[]>(CERTIFICATION_TOPICS);
   const [situation, setSituation] = useState<BusinessSituation>(BusinessSituation.MEETING);
   const [condition, setCondition] = useState<StudyCondition>(StudyCondition.STANDARD);
   
@@ -115,7 +110,7 @@ const App: React.FC = () => {
   const currentOutputTranscription = useRef('');
 
   useEffect(() => {
-    const stored = localStorage.getItem('ai_lc_study_sessions_v2');
+    const stored = localStorage.getItem('ai_lc_study_sessions_v3');
     if (stored) {
       try { setSavedSessions(JSON.parse(stored)); } catch (e) { console.error(e); }
     }
@@ -141,12 +136,11 @@ const App: React.FC = () => {
       const topic = m === PracticeMode.CERTIFICATION ? ct : dt;
       
       const prompt = `Linguistic Data Scientist. Session Summary for table [${DB_CONFIG.table}] in ${lang}.
-      Please summarize the following conversation.
-      Structure the output as follows:
-      1. 【OVERALL SUMMARY】: A concise wrap-up of what was discussed.
-      2. 【KEY CONCEPTS】: Bullet points of technical terms or phrases used.
-      3. 【PRACTICE FEEDBACK】: Tips on how to improve grammar or pronunciation based on the context.
-      4. 【NEXT STEPS】: Recommended topics for the next session.
+      会話の内容を以下の構成で整理してください：
+      1. 【全体要約】: 今回話した内容の簡潔なまとめ。
+      2. 【習得した概念・用語】: 登場した重要な専門用語や表現（箇条書き）。
+      3. 【改善へのフィードバック】: 文法や自然さ、発音など、今後意識すべき点。
+      4. 【次のステップ】: 次回のセッションで深掘りすべきトピックの提案。
       
       History: ${transcriptions.map(e => `[${e.role}] ${e.text}`).join('\n')}`;
 
@@ -174,13 +168,13 @@ const App: React.FC = () => {
 
       setSavedSessions(prev => {
         const updated = [newSession, ...prev];
-        localStorage.setItem('ai_lc_study_sessions_v2', JSON.stringify(updated));
+        localStorage.setItem('ai_lc_study_sessions_v3', JSON.stringify(updated));
         return updated;
       });
 
     } catch (e) {
       console.error(e);
-      setStatus(prev => ({ ...prev, error: "Commit failed." }));
+      setStatus(prev => ({ ...prev, error: "レポート生成に失敗しました。" }));
     } finally {
       setIsSummarizing(false);
     }
@@ -188,15 +182,16 @@ const App: React.FC = () => {
 
   const exportSummaryAsFile = () => {
     if (!studySummary) return;
+    const { certificationTopic: ct, dailyTopic: dt, mode: m } = currentSettings.current;
+    const topic = m === PracticeMode.CERTIFICATION ? ct : dt;
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `StudyReport_${topic.replace(/\s+/g, '_')}_${dateStr}.txt`;
+    
     const blob = new Blob([studySummary], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const { certificationTopic: ct, dailyTopic: dt, mode: m } = currentSettings.current;
-    const topic = m === PracticeMode.CERTIFICATION ? ct : dt;
-    
     link.href = url;
-    link.download = `StudyReport_${topic.replace(/\s+/g, '_')}_${dateStr}.txt`;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -317,9 +312,11 @@ const App: React.FC = () => {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-          systemInstruction: `You are a professional linguistic coach for ${lang}.
-          Protocol: ${m}. Focus: ${currentTopicStr}. Condition: ${cond}.
-          Be precise and maintain the selected educational tone.`,
+          systemInstruction: `You are an elite linguistic coach and subject expert for ${lang}.
+          Mode: ${m}. Focus: ${currentTopicStr}. Condition: ${cond}.
+          If mode is Certification Study, prioritize technical accuracy and structured explanations.
+          If Business, prioritize professional etiquette and clear articulation.
+          If Daily, maintain a natural, supportive flow.`,
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
@@ -329,6 +326,21 @@ const App: React.FC = () => {
       console.error(err);
       setStatus({ isConnecting: false, isConnected: false, error: err.message });
       cleanup();
+    }
+  };
+
+  const handleAddTopic = (type: 'daily' | 'cert' | 'category') => {
+    const val = prompt("新しいトピック名を入力してください:");
+    if (!val) return;
+    if (type === 'daily') {
+      setAvailableDailyTopics(prev => [...prev, val]);
+      setDailyTopic(val);
+    } else if (type === 'cert') {
+      setAvailableCertTopics(prev => [...prev, val]);
+      setCertificationTopic(val);
+    } else if (type === 'category') {
+      setAvailableCategories(prev => [...prev, val]);
+      setCategory(val);
     }
   };
 
@@ -355,11 +367,11 @@ const App: React.FC = () => {
              <div className={`w-3 h-3 rounded-full ${status.isConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-slate-700'}`}></div>
              <span className="text-xs font-black uppercase tracking-widest text-slate-400">{status.isConnected ? t.uplinkActive : t.uplinkReady}</span>
           </div>
-          {status.isConnected && transcriptions.length > 0 && (
+          {transcriptions.length > 0 && (
             <button 
               onClick={handleFinishStudy} 
               disabled={isSummarizing}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center gap-2"
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
             >
               {isSummarizing ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : t.finishBtn}
             </button>
@@ -378,29 +390,37 @@ const App: React.FC = () => {
             selectedMode={mode} onModeChange={setMode}
             selectedSituation={situation} onSituationChange={setSituation}
             selectedCategory={category} onCategoryChange={setCategory}
-            availableCategories={availableCategories} onAddCategory={() => {}}
+            availableCategories={availableCategories} onAddCategory={() => handleAddTopic('category')}
             selectedDailyTopic={dailyTopic} onDailyTopicChange={setDailyTopic}
-            availableDailyTopics={availableDailyTopics} onAddDailyTopic={() => {}}
+            availableDailyTopics={availableDailyTopics} onAddDailyTopic={() => handleAddTopic('daily')}
             selectedCertTopic={certificationTopic} onCertTopicChange={setCertificationTopic}
-            availableCertTopics={availableCertTopics} onAddCertTopic={() => {}}
+            availableCertTopics={availableCertTopics} onAddCertTopic={() => handleAddTopic('cert')}
             selectedCondition={condition} onConditionChange={setCondition}
             isChallengeMode={false} onChallengeToggle={() => {}}
           />
           <VisionPreview stream={cameraStream} isActive={isVisionEnabled} />
         </aside>
 
-        <section className="lg:col-span-9 space-y-8 h-full">
+        <section className="lg:col-span-9 space-y-8 h-full flex flex-col">
+          {/* Main Content Area with Fixed Height */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[750px]">
             <div className="lg:col-span-2 flex flex-col bg-slate-900/40 rounded-[2.5rem] border border-slate-800 p-8 shadow-2xl backdrop-blur-sm overflow-hidden h-full">
               <TranscriptionView entries={transcriptions} lang={language} mode={mode} />
             </div>
-            <div className="h-full">
+            <div className="h-full overflow-hidden">
               <SuggestionPanel suggestions={suggestions} learnedTerms={learnedTerms} isLoading={isSuggestionsLoading} error={null} onSelect={() => {}} isPlaying={null} lang={language} mode={mode} />
             </div>
           </div>
+          
           <div className="p-8 bg-slate-900/40 rounded-[2rem] border border-slate-800 shadow-xl grid grid-cols-1 md:grid-cols-2 gap-12">
-            <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#10b981" />
-            <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500/60 ml-1">Mic Input</span>
+              <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#10b981" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-500/60 ml-1">AI Output</span>
+              <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
+            </div>
           </div>
         </section>
       </main>
