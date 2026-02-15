@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
-import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule } from './types';
+import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule } from './types';
 import { createBlob, decode, decodeAudioData } from './services/audioService';
 import ControlPanel from './components/ControlPanel';
 import TranscriptionView from './components/TranscriptionView';
@@ -18,6 +18,7 @@ import Education from './components/Education';
 import Testimonials from './components/Testimonials';
 import ContactSection from './components/ContactSection';
 import BkimProtocolView from './components/BkimProtocolView';
+import SummaryModal from './components/SummaryModal';
 
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const EVALUATION_MODEL_NAME = 'gemini-3-flash-preview';
@@ -31,16 +32,17 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     uplinkActive: "Synchronized",
     streamTitle: "Linguistic Data Stream",
     analyzeTitle: "Diagnostic AI Protocol",
-    analyzeDesc: "Analyzes grammar, vocabulary, and fluency to generate a detailed neural score report.",
-    archiveTitle: "Session Commit Vault",
-    archiveDesc: "Saves current logs, missions, and diagnostics to the persistent history archive.",
+    analyzeDesc: "Analyzes grammar, vocabulary, and fluency.",
+    archiveTitle: "Session Commit",
+    archiveDesc: "Saves current logs.",
     analyzeBtn: "Analyze Flow",
     archiveBtn: "Archive State",
+    finishBtn: "Finish Study",
     oscilloscope: "Neural Oscilloscope",
     aboutMe: "Engineer Profile",
     portfolio: "Portfolio",
-    camError: "Camera access denied. Please enable it in browser settings.",
-    camNotFound: "No camera found on this device."
+    camError: "Camera access denied.",
+    camNotFound: "No camera found."
   },
   [Language.JAPANESE]: {
     appTitle: "Polyglot Labs",
@@ -50,16 +52,17 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     uplinkActive: "同期済み",
     streamTitle: "言語データストリーム",
     analyzeTitle: "AI診断プロトコル",
-    analyzeDesc: "文法、語彙、流暢さをニューラル分析し、詳細なスコアレポートを生成します。",
+    analyzeDesc: "文法、語彙、流暢さを分析。",
     archiveTitle: "セッション・コミット",
-    archiveDesc: "対話ログ、ミッション、診断データを履歴アーカイブに永続保存します。",
+    archiveDesc: "ログを保存。",
     analyzeBtn: "フロー解析",
     archiveBtn: "状態保存",
+    finishBtn: "勉強終了",
     oscilloscope: "ニューラル・オシロスコープ",
     aboutMe: "エンジニア・プロフィール",
     portfolio: "ポートフォリオ",
-    camError: "カメラの使用が拒否されました。ブラウザの設定から許可してください。",
-    camNotFound: "カメラが見つかりませんでした。"
+    camError: "カメラの使用が拒否されました。",
+    camNotFound: "カメラが見つかりません。"
   },
   [Language.CHINESE]: {
     appTitle: "博学语言实验室",
@@ -69,15 +72,16 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     uplinkActive: "已同步",
     streamTitle: "语言数据流",
     analyzeTitle: "AI 诊断协议",
-    analyzeDesc: "分析语法、词汇和流畅度，生成详细的神经网络评分报告。",
-    archiveTitle: "会话归档库",
-    archiveDesc: "将当前日志、任务和診断数据保存到持久历史档案中。",
+    analyzeDesc: "分析语法、词汇和流畅度。",
+    archiveTitle: "会话归档",
+    archiveDesc: "保存日志。",
     analyzeBtn: "分析流程",
     archiveBtn: "存档状态",
+    finishBtn: "完成学习",
     oscilloscope: "神经示波器",
     aboutMe: "工程师简介",
     portfolio: "作品集",
-    camError: "相机访问被拒绝。请在浏览器设置中启用。",
+    camError: "相机访问被拒绝。",
     camNotFound: "未找到相机。"
   },
   [Language.KOREAN]: {
@@ -86,18 +90,19 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     visionLink: "비전 링크",
     uplinkReady: "대기 중",
     uplinkActive: "동기화됨",
-    streamTitle: "언어 데이터 ストリーム",
-    analyzeTitle: "AI 진단プロトコル",
-    analyzeDesc: "문법, 어휘, 유창성을 분석하여 상세한 신경망 점수 보고서를 생성합니다.",
-    archiveTitle: "세션 커밋 보관소",
-    archiveDesc: "현재 로그, 미션 및 진단 데이터를 영구 기록 아카이브에 저장합니다.",
+    streamTitle: "언어 데이터 스트リーム",
+    analyzeTitle: "AI 진단프로토콜",
+    analyzeDesc: "문법, 어휘, 유창성 분석.",
+    archiveTitle: "세션 커밋",
+    archiveDesc: "로그 저장.",
     analyzeBtn: "흐름 분석",
     archiveBtn: "상태 저장",
+    finishBtn: "학습 종료",
     oscilloscope: "뉴럴 오실로스코프",
     aboutMe: "엔지니어 프로필",
     portfolio: "포트폴리오",
-    camError: "카메라 접근이 거부되었습니다. 브라우저 설정에서 허용해주세요.",
-    camNotFound: "카메라를 찾을 수 없습니다."
+    camError: "카메라 접근 거부됨.",
+    camNotFound: "카메라 없음."
   }
 };
 
@@ -110,6 +115,9 @@ const App: React.FC = () => {
   const [availableCategories, setAvailableCategories] = useState<string[]>(Object.values(BusinessCategory));
   const [dailyTopic, setDailyTopic] = useState<string>(DAILY_TOPICS[0]);
   const [availableDailyTopics, setAvailableDailyTopics] = useState<string[]>(DAILY_TOPICS);
+  const [certificationTopic, setCertificationTopic] = useState<string>(CERTIFICATION_TOPICS[0]);
+  const [availableCertTopics, setAvailableCertTopics] = useState<string[]>(CERTIFICATION_TOPICS);
+  
   const [isChallengeMode, setIsChallengeMode] = useState(false);
   const [isVisionEnabled, setIsVisionEnabled] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -122,6 +130,10 @@ const App: React.FC = () => {
   const [currentBkimSchedule, setCurrentBkimSchedule] = useState<BkimSchedule | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // New States for Summary
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [studySummary, setStudySummary] = useState<string | null>(null);
 
   const audioContextRef = useRef<{ input: AudioContext; output: AudioContext; } | null>(null);
   const inputAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -173,124 +185,78 @@ const App: React.FC = () => {
         setCameraStream(null);
       }
     }
-    return () => {
-      if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
-    };
   }, [isVisionEnabled, t.camError, t.camNotFound]);
-
-  const triggerBkimProtocol = async () => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Generate a high-fidelity "Senior Engineer One-Day Progress Schedule" and "Execution Preparation Checklist" for an AI Voice Application project.
-      Output exactly in JSON format:
-      {
-        "protocolId": "BKIM-X-99",
-        "dailySchedule": [
-          { "time": "09:00", "task": "Task name", "priority": "High", "status": "pending" },
-          ...
-        ],
-        "executionPrep": [
-          { "item": "Dependency check", "ready": true },
-          ...
-        ]
-      }`;
-
-      const response = await ai.models.generateContent({
-        model: EVALUATION_MODEL_NAME,
-        contents: prompt,
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              protocolId: { type: Type.STRING },
-              dailySchedule: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    time: { type: Type.STRING },
-                    task: { type: Type.STRING },
-                    priority: { type: Type.STRING },
-                    status: { type: Type.STRING }
-                  }
-                }
-              },
-              executionPrep: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    item: { type: Type.STRING },
-                    ready: { type: Type.BOOLEAN }
-                  }
-                }
-              }
-            }
-          }
-        }
-      });
-
-      const result = JSON.parse(response.text || "{}") as BkimSchedule;
-      setCurrentBkimSchedule(result);
-    } catch (e) {
-      console.error("Bkim Protocol activation failed:", e);
-    }
-  };
-
-  const stopAllAudio = useCallback(() => {
-    sourcesRef.current.forEach((source) => { try { source.stop(); } catch (e) {} });
-    sourcesRef.current.clear();
-    nextStartTimeRef.current = 0;
-  }, []);
 
   const cleanup = useCallback(() => {
     isConnectedRef.current = false;
-    stopAllAudio();
-    if (visionIntervalRef.current) {
-      clearInterval(visionIntervalRef.current);
-      visionIntervalRef.current = null;
-    }
-    if (sessionRef.current) {
-      try { sessionRef.current.close(); } catch (e) {}
-      sessionRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
+    sourcesRef.current.forEach(s => { try { s.stop(); } catch(e){} });
+    sourcesRef.current.clear();
+    if (visionIntervalRef.current) clearInterval(visionIntervalRef.current);
+    if (sessionRef.current) { try { sessionRef.current.close(); } catch(e){} }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); }
     setStatus({ isConnected: false, isConnecting: false, error: null });
-  }, [stopAllAudio]);
+  }, []);
+
+  const handleFinishStudy = async () => {
+    if (transcriptions.length === 0) return;
+    setIsSummarizing(true);
+    cleanup(); // Stop session first
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const historyText = transcriptions.map(e => `[${e.role}] ${e.text}`).join('\n');
+      const prompt = `Based on the following study session for the "${certificationTopic}" certification, please generate a structured study report in ${languageRef.current}.
+      Include:
+      1. Overall Summary of the session.
+      2. Key Concepts & Technical Terms learned.
+      3. Areas requiring further review.
+      4. Actionable takeaways for the next session.
+      
+      Transcript:
+      ${historyText}`;
+
+      const response = await ai.models.generateContent({
+        model: EVALUATION_MODEL_NAME,
+        contents: prompt
+      });
+
+      setStudySummary(response.text || "Summary generation failed.");
+    } catch (e) {
+      console.error(e);
+      setStatus(prev => ({ ...prev, error: "Summary generation failed." }));
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  const exportSummaryAsFile = () => {
+    if (!studySummary) return;
+    const blob = new Blob([studySummary], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.download = `Study_Report_${certificationTopic.replace(/\s+/g, '_')}_${dateStr}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const fetchSuggestions = async (history: TranscriptionEntry[]) => {
     if (history.length === 0) return;
     setIsSuggestionsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Based on the conversation context in ${languageRef.current}, provide 3 natural and useful response suggestions for the user.
-      Return exactly a JSON array of 3 strings. Each string must be in ${languageRef.current}.
-      Context:
-      ${history.slice(-5).map(h => `${h.role === 'user' ? 'User' : 'Coach'}: ${h.text}`).join('\n')}`;
-
+      const prompt = `Based on the conversation context in ${languageRef.current}, provide 3 natural response suggestions for the user in ${languageRef.current}. Return as JSON array of strings.`;
       const response = await ai.models.generateContent({
         model: EVALUATION_MODEL_NAME,
         contents: prompt,
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-          }
-        }
+        config: { responseMimeType: "application/json" }
       });
-
       const result = JSON.parse(response.text || "[]");
       setSuggestions(result);
-    } catch (e) {
-      console.error("Suggestion generation failed:", e);
-    } finally {
-      setIsSuggestionsLoading(false);
-    }
+    } catch (e) { console.error(e); } finally { setIsSuggestionsLoading(false); }
   };
 
   const startSession = async () => {
@@ -307,8 +273,6 @@ const App: React.FC = () => {
         inputAnalyserRef.current = audioContextRef.current.input.createAnalyser();
         outputAnalyserRef.current = audioContextRef.current.output.createAnalyser();
       }
-      await audioContextRef.current.input.resume();
-      await audioContextRef.current.output.resume();
       
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = audioStream;
@@ -319,70 +283,39 @@ const App: React.FC = () => {
           onopen: () => {
             isConnectedRef.current = true;
             setStatus({ isConnected: true, isConnecting: false, error: null });
-            
             const source = audioContextRef.current!.input.createMediaStreamSource(audioStream);
             const scriptProcessor = audioContextRef.current!.input.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
               if (!isConnectedRef.current) return;
               const pcmBlob = createBlob(e.inputBuffer.getChannelData(0));
-              sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob })).catch(() => {});
+              sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob }));
             };
             source.connect(inputAnalyserRef.current!);
             inputAnalyserRef.current!.connect(scriptProcessor);
             scriptProcessor.connect(audioContextRef.current!.input.destination);
-
-            if (isVisionEnabled && cameraStream) {
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              const video = document.createElement('video');
-              video.srcObject = cameraStream;
-              video.play();
-
-              visionIntervalRef.current = window.setInterval(() => {
-                if (!ctx || !video.videoWidth) return;
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                ctx.drawImage(video, 0, 0);
-                canvas.toBlob(async (blob) => {
-                  if (blob) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      const base64 = (reader.result as string).split(',')[1];
-                      sessionPromise.then(s => s.sendRealtimeInput({ media: { data: base64, mimeType: 'image/jpeg' } }));
-                    };
-                    reader.readAsDataURL(blob);
-                  }
-                }, 'image/jpeg', 0.5);
-              }, 1000);
-            }
           },
           onmessage: async (msg) => {
             if (msg.serverContent?.outputTranscription) currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
-            if (msg.serverContent?.inputTranscription) {
-              const text = msg.serverContent.inputTranscription.text;
-              currentInputTranscription.current += text;
-              // Intent detection for BKIM Protocol
-              if (currentInputTranscription.current.toLowerCase().includes("are you there bkim")) {
-                triggerBkimProtocol();
-              }
-            }
+            if (msg.serverContent?.inputTranscription) currentInputTranscription.current += msg.serverContent.inputTranscription.text;
             
             if (msg.serverContent?.turnComplete) {
               const u = currentInputTranscription.current.trim();
               const m = currentOutputTranscription.current.trim();
               if (u || m) {
+                const newEntries = [
+                  ...(u ? [{ role: 'user' as const, text: u, timestamp: Date.now() }] : []),
+                  ...(m ? [{ role: 'model' as const, text: m, timestamp: Date.now()+1 }] : [])
+                ];
                 setTranscriptions(prev => {
-                  const newEntries = [...prev];
-                  if (u) newEntries.push({ role: 'user' as const, text: u, timestamp: Date.now() });
-                  if (m) newEntries.push({ role: 'model' as const, text: m, timestamp: Date.now()+1 });
-                  if (m) fetchSuggestions(newEntries).catch(console.error);
-                  return newEntries;
+                  const updated = [...prev, ...newEntries];
+                  if (m) fetchSuggestions(updated);
+                  return updated;
                 });
               }
               currentInputTranscription.current = '';
               currentOutputTranscription.current = '';
             }
-            
+
             const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio && audioContextRef.current) {
               const { output } = audioContextRef.current;
@@ -403,9 +336,11 @@ const App: React.FC = () => {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+          systemInstruction: mode === PracticeMode.CERTIFICATION 
+            ? `You are an expert instructor for the ${certificationTopic} certification. Help the user study in ${languageRef.current}.`
+            : `You are a coach. Scenario: ${mode}. Focus: ${category}. Language: ${languageRef.current}.`,
           outputAudioTranscription: {},
           inputAudioTranscription: {},
-          systemInstruction: `You are a high-immersion language coach for ${languageRef.current}. Speak ONLY in ${languageRef.current}. Mode: ${isChallengeMode ? 'Diagnostic/Challenge' : 'Supportive Training'}. Scenario: ${mode === PracticeMode.DAILY ? dailyTopic : category}. If the user says "Are you there bkim?", acknowledge it with a tech-heavy greeting and wait for the protocol to sync.`,
         },
       });
       sessionRef.current = await sessionPromise;
@@ -420,221 +355,115 @@ const App: React.FC = () => {
     setIsEvaluating(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Analyze this ${languageRef.current} transcript. 
-      Return a JSON object: { grammarScore: 0-100, vocabularyScore: 0-100, naturalnessScore: 0-100, overallGrade: "S"|"A"|"B"|"C"|"D", strengths: string[], weaknesses: string[], suggestedImprovement: string }. 
-      Descriptions in ${languageRef.current}. 
-      Transcript: ${history.map(h => `[${h.role}] ${h.text}`).join('\n')}`;
-
+      const prompt = `Analyze this ${languageRef.current} transcript. Return JSON: { grammarScore: 0-100, vocabularyScore: 0-100, naturalnessScore: 0-100, overallGrade: "S"|"A"|"B"|"C"|"D", strengths: string[], weaknesses: string[], suggestedImprovement: string }. Transcript: ${history.map(h => `[${h.role}] ${h.text}`).join('\n')}`;
       const response = await ai.models.generateContent({
         model: EVALUATION_MODEL_NAME,
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
-
-      const text = response.text || "{}";
-      const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const result = JSON.parse(cleanJson);
-      setCurrentEvaluation(result);
-    } catch (e) {
-      console.error(e);
-      setStatus(prev => ({ ...prev, error: "Diagnostic failed. Please try again." }));
-    } finally { setIsEvaluating(false); }
-  };
-
-  const saveCurrentSession = async () => {
-    if (transcriptions.length === 0) return;
-    setIsSaving(true);
-    try {
-      const newSession: SavedSession = {
-        id: Math.random().toString(36).substring(7),
-        timestamp: Date.now(),
-        language,
-        mode,
-        category,
-        dailyTopic,
-        transcriptions: [...transcriptions],
-        preview: transcriptions[transcriptions.length - 1]?.text || "No preview",
-        evaluation: currentEvaluation || undefined
-      };
-      setSavedSessions(prev => [newSession, ...prev].slice(0, 10));
-      await new Promise(r => setTimeout(r, 600));
-    } finally { setIsSaving(false); }
-  };
-
-  const loadSession = (session: SavedSession) => {
-    setLanguage(session.language);
-    setMode(session.mode);
-    setCategory(session.category);
-    setDailyTopic(session.dailyTopic);
-    setTranscriptions(session.transcriptions);
-    setCurrentEvaluation(session.evaluation || null);
-    if (isConnectedRef.current) cleanup();
-  };
-
-  const handleAddCategory = () => {
-    const name = prompt('Enter new domain name:');
-    if (name && !availableCategories.includes(name)) {
-      setAvailableCategories(prev => [...prev, name]);
-      setCategory(name);
-    }
-  };
-
-  const handleAddDailyTopic = () => {
-    const name = prompt('Enter new daily scenario:');
-    if (name && !availableDailyTopics.includes(name)) {
-      setAvailableDailyTopics(prev => [...prev, name]);
-      setDailyTopic(name);
-    }
+      setCurrentEvaluation(JSON.parse(response.text || "{}"));
+    } catch (e) { console.error(e); } finally { setIsEvaluating(false); }
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center py-6 md:py-12 px-4 md:px-6 text-slate-200 overflow-x-hidden text-left">
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center py-12 px-6 text-slate-200 overflow-x-hidden text-left">
       {status.error && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md animate-in slide-in-from-top-4 duration-300">
-          <div className="bg-red-500/10 border border-red-500/50 backdrop-blur-xl p-4 rounded-2xl flex items-center gap-4 shadow-2xl">
-            <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-red-500/30 text-white">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-            </div>
-            <div className="flex-grow">
-              <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none mb-1">System Alert</h4>
-              <p className="text-xs text-red-100 font-medium leading-tight">{status.error}</p>
-            </div>
-            <button onClick={() => setStatus(prev => ({ ...prev, error: null }))} className="text-red-400/50 hover:text-red-400 transition-colors">
-               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md bg-red-500/10 border border-red-500/50 backdrop-blur-xl p-4 rounded-2xl flex items-center gap-4 shadow-2xl animate-in slide-in-from-top-4">
+          <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 text-white font-bold">!</div>
+          <div className="flex-grow">
+            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none mb-1">System Alert</h4>
+            <p className="text-xs text-red-100 font-medium leading-tight">{status.error}</p>
           </div>
+          <button onClick={() => setStatus(prev => ({ ...prev, error: null }))} className="text-red-400/50 hover:text-red-400 transition-colors">✕</button>
         </div>
       )}
 
-      <header className="w-full max-w-7xl flex flex-col md:flex-row items-center justify-between mb-8 md:mb-12 gap-6 px-2">
-        <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto">
-          <div className="p-3 md:p-5 bg-blue-600 rounded-2xl md:rounded-[1.5rem] shadow-[0_0_40px_rgba(37,99,235,0.4)] flex-shrink-0">
-            <svg className="w-6 h-6 md:w-10 md:h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+      <header className="w-full max-w-7xl flex flex-col md:flex-row items-center justify-between mb-12 gap-6">
+        <div className="flex items-center gap-6">
+          <div className="p-5 bg-blue-600 rounded-[1.5rem] shadow-[0_0_40px_rgba(37,99,235,0.4)]">
+            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
           </div>
-          <div className="flex flex-col min-w-0">
-            <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white uppercase italic leading-none truncate">{t.appTitle}</h1>
-            <span className="text-[9px] md:text-[11px] text-blue-400 font-black uppercase tracking-[0.2em] md:tracking-[0.4em] mt-1 truncate">{t.appSub}</span>
+          <div>
+            <h1 className="text-4xl font-black tracking-tight text-white uppercase italic leading-none">{t.appTitle}</h1>
+            <span className="text-[11px] text-blue-400 font-black uppercase tracking-[0.4em] mt-1">{t.appSub}</span>
           </div>
         </div>
         
-        <div className="flex flex-row items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-           {currentBkimSchedule && (
-             <div className="flex items-center gap-2 h-12 md:h-14 px-4 bg-cyan-500/10 border border-cyan-500/30 rounded-xl animate-pulse">
-               <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(34,211,238,0.8)]"></div>
-               <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Bkim Protocol Active</span>
-             </div>
-           )}
-
+        <div className="flex items-center gap-4">
            <button 
             onClick={() => setIsVisionEnabled(!isVisionEnabled)}
-            disabled={status.isConnected}
-            className={`flex items-center justify-center gap-2 md:gap-3 h-12 md:h-14 px-4 md:px-6 rounded-xl md:rounded-2xl border transition-all flex-shrink-0 min-w-[130px] md:min-w-[170px] ${
-              isVisionEnabled ? 'bg-indigo-500/10 border-indigo-500 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.2)]' : 'bg-slate-900 border-slate-800 text-slate-500'
-            } disabled:opacity-30 active:scale-95`}
+            className={`flex items-center gap-3 px-6 py-4 rounded-2xl border transition-all ${isVisionEnabled ? 'bg-indigo-500/10 border-indigo-500 text-indigo-400' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'}`}
           >
-            <span className="text-lg md:text-xl flex-shrink-0">{isVisionEnabled ? '👁️' : '🕶️'}</span>
-            <span className="text-[9px] md:text-[11px] font-black uppercase tracking-widest truncate">{t.visionLink}</span>
+            <span className="text-xl">{isVisionEnabled ? '👁️' : '🕶️'}</span>
+            <span className="text-[11px] font-black uppercase tracking-widest">{t.visionLink}</span>
           </button>
-          
-          <div className="h-12 md:h-14 px-4 md:px-6 bg-slate-900/80 border border-slate-800 rounded-xl md:rounded-2xl flex items-center justify-center gap-3 md:gap-4 flex-shrink-0 min-w-[150px] md:min-w-[190px]">
-             <div className={`w-2 h-2 md:w-3 md:h-3 rounded-full flex-shrink-0 ${status.isConnected ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.8)]' : 'bg-slate-700'}`}></div>
-             <span className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.1em] md:tracking-[0.2em] text-slate-400 truncate text-center">
+          <div className="px-6 py-4 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center gap-4">
+             <div className={`w-3 h-3 rounded-full ${status.isConnected ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.8)]' : 'bg-slate-700'}`}></div>
+             <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                {status.isConnected ? t.uplinkActive : t.uplinkReady}
              </span>
           </div>
         </div>
       </header>
 
-      <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10 lg:items-start mb-12 px-2">
-        <aside className="order-1 lg:col-span-3 flex flex-col space-y-6 md:space-y-10">
-          <div className="order-1">
-            <ControlPanel
-              isConnecting={status.isConnecting} isConnected={status.isConnected}
-              onToggle={() => status.isConnected ? cleanup() : startSession()}
-              selectedVoice={voice} onVoiceChange={setVoice}
-              selectedLanguage={language} onLanguageChange={setLanguage}
-              selectedMode={mode} onModeChange={setMode}
-              selectedSituation={BusinessSituation.MEETING} onSituationChange={() => {}}
-              selectedCategory={category} onCategoryChange={setCategory}
-              availableCategories={availableCategories} onAddCategory={handleAddCategory}
-              selectedDailyTopic={dailyTopic} onDailyTopicChange={setDailyTopic}
-              availableDailyTopics={availableDailyTopics} onAddDailyTopic={handleAddDailyTopic}
-              isChallengeMode={isChallengeMode} onChallengeToggle={setIsChallengeMode}
-            />
-          </div>
-          <div className="order-2">
-            <VisionPreview stream={cameraStream} isActive={isVisionEnabled} />
-          </div>
-          <div className="order-3">
-            <MissionPanel missions={[]} lang={language} />
-          </div>
+      <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <aside className="lg:col-span-3 space-y-10">
+          <ControlPanel
+            isConnecting={status.isConnecting} isConnected={status.isConnected}
+            onToggle={() => status.isConnected ? cleanup() : startSession()}
+            selectedVoice={voice} onVoiceChange={setVoice}
+            selectedLanguage={language} onLanguageChange={setLanguage}
+            selectedMode={mode} onModeChange={setMode}
+            selectedSituation={BusinessSituation.MEETING} onSituationChange={() => {}}
+            selectedCategory={category} onCategoryChange={setCategory}
+            availableCategories={availableCategories} onAddCategory={() => {}}
+            selectedDailyTopic={dailyTopic} onDailyTopicChange={setDailyTopic}
+            availableDailyTopics={availableDailyTopics} onAddDailyTopic={() => {}}
+            selectedCertTopic={certificationTopic} onCertTopicChange={setCertificationTopic}
+            availableCertTopics={availableCertTopics} onAddCertTopic={() => {}}
+            isChallengeMode={isChallengeMode} onChallengeToggle={setIsChallengeMode}
+          />
+          <VisionPreview stream={cameraStream} isActive={isVisionEnabled} />
         </aside>
 
-        <section className="order-2 lg:col-span-9 flex flex-col space-y-8 md:space-y-10">
-          <div className="flex flex-col lg:flex-row gap-6 md:gap-8 min-h-[500px] lg:h-[600px]">
-            <div className="flex-grow lg:w-2/3 flex flex-col bg-slate-900/20 rounded-[2.5rem] border border-slate-800 p-6 md:p-8 shadow-2xl backdrop-blur-sm overflow-hidden">
-              <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4 z-20">
+        <section className="lg:col-span-9 space-y-10">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 min-h-[500px]">
+            <div className="lg:col-span-2 flex flex-col bg-slate-900/20 rounded-[2.5rem] border border-slate-800 p-8 shadow-2xl backdrop-blur-sm overflow-hidden relative">
+              <div className="flex items-center justify-between mb-8 z-20">
                 <div className="flex items-center gap-3">
                    <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
-                   <h3 className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest">{t.streamTitle}</h3>
+                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">{t.streamTitle}</h3>
                 </div>
-                <div className="flex gap-2 w-full sm:w-auto">
-                   <button onClick={() => runDiagnostic(transcriptions)} disabled={transcriptions.length < 2 || isEvaluating} className="action-btn-emerald flex-1 sm:flex-none">
+                <div className="flex gap-2">
+                   {mode === PracticeMode.CERTIFICATION && (
+                     <button onClick={handleFinishStudy} disabled={transcriptions.length === 0 || isSummarizing} className="study-finish-btn">
+                       {isSummarizing ? <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" /> : t.finishBtn}
+                     </button>
+                   )}
+                   <button onClick={() => runDiagnostic(transcriptions)} disabled={transcriptions.length < 2 || isEvaluating} className="action-btn-emerald">
                      {isEvaluating ? <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" /> : t.analyzeBtn}
                    </button>
-                   <button onClick={saveCurrentSession} disabled={transcriptions.length === 0 || isSaving} className="action-btn-blue flex-1 sm:flex-none">
-                     {isSaving ? <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /> : t.archiveBtn}
-                   </button>
                 </div>
               </div>
-              <div className="flex-grow overflow-hidden">
-                <TranscriptionView entries={transcriptions} lang={language} />
-              </div>
+              <TranscriptionView entries={transcriptions} lang={language} />
             </div>
-
-            <div className="lg:w-1/3 lg:max-w-[380px] flex flex-col">
-              <SuggestionPanel 
-                suggestions={suggestions} 
-                isLoading={isSuggestionsLoading} 
-                error={null} 
-                onSelect={(text) => {
-                  if (sessionRef.current && isConnectedRef.current) {
-                    sessionRef.current.send({ parts: [{ text }] });
-                  }
-                }} 
-                isPlaying={null} 
-                lang={language} 
-              />
-            </div>
+            <SuggestionPanel suggestions={suggestions} isLoading={isSuggestionsLoading} error={null} onSelect={() => {}} isPlaying={null} lang={language} />
           </div>
           
-          <div className="p-6 md:p-8 bg-slate-950/60 rounded-[2.5rem] border border-slate-800 shadow-xl w-full">
-             <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 text-center">{t.oscilloscope}</h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-               <div className="relative">
-                 <span className="absolute -top-3 left-4 text-[7px] font-bold text-emerald-500/50 uppercase tracking-widest">Input</span>
-                 <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#10b981" />
-               </div>
-               <div className="relative">
-                 <span className="absolute -top-3 left-4 text-[7px] font-bold text-blue-500/50 uppercase tracking-widest">Feedback</span>
-                 <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
-               </div>
-             </div>
+          <div className="p-8 bg-slate-950/60 rounded-[2.5rem] border border-slate-800 shadow-xl grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500/60 ml-1">Input Stream</span>
+              <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#10b981" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-500/60 ml-1">Output Response</span>
+              <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
+            </div>
           </div>
         </section>
       </main>
 
-      <div className="w-full px-4">
-        <HistoryPanel sessions={savedSessions} onLoad={loadSession} onDelete={(id) => setSavedSessions(s => s.filter(x => x.id !== id))} lang={language} />
-      </div>
-
-      <div className="w-full max-w-7xl mt-24 border-t border-slate-800 pt-20 px-4">
-        <div className="flex flex-col items-center mb-16 text-center">
-          <div className="px-4 py-1.5 bg-blue-600/10 border border-blue-500/30 rounded-full mb-4">
-            <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{t.aboutMe}</span>
-          </div>
-          <h2 className="text-3xl md:text-5xl font-black text-white italic uppercase tracking-tighter">{t.portfolio}</h2>
-        </div>
+      <div className="w-full max-w-7xl mt-24 border-t border-slate-800 pt-20">
         <div className="space-y-20">
           <SkillsAndInterests lang={language} />
           <ProjectShowcase lang={language} />
@@ -648,23 +477,22 @@ const App: React.FC = () => {
       </div>
 
       {currentEvaluation && <DiagnosticView evaluation={currentEvaluation} onClose={() => setCurrentEvaluation(null)} />}
-      
-      {currentBkimSchedule && (
-        <BkimProtocolView 
-          schedule={currentBkimSchedule} 
-          onClose={() => setCurrentBkimSchedule(null)} 
+      {studySummary && (
+        <SummaryModal 
+          summary={studySummary} 
+          onClose={() => setStudySummary(null)} 
+          onDownload={exportSummaryAsFile} 
+          lang={language} 
         />
       )}
 
       <style>{`
         .action-btn-emerald {
-          @apply px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-[9px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all duration-300 disabled:opacity-20 flex items-center justify-center min-w-[110px];
+          @apply px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-20 flex items-center justify-center min-w-[100px];
         }
-        .action-btn-blue {
-          @apply px-4 py-2.5 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-[9px] font-black uppercase tracking-widest text-blue-400 hover:bg-blue-500 hover:text-white transition-all duration-300 disabled:opacity-20 flex items-center justify-center min-w-[110px];
+        .study-finish-btn {
+          @apply px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-xl text-[9px] font-black uppercase tracking-widest text-emerald-100 hover:bg-emerald-600 transition-all disabled:opacity-20 flex items-center justify-center min-w-[100px] shadow-lg shadow-emerald-900/20;
         }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );

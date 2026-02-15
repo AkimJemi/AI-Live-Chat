@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
-import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule } from './types';
+import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, CERTIFICATION_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule } from './types';
 import { createBlob, decode, decodeAudioData } from './services/audioService';
 import ControlPanel from './components/ControlPanel';
 import TranscriptionView from './components/TranscriptionView';
@@ -12,13 +12,13 @@ import HistoryPanel from './components/HistoryPanel';
 import DiagnosticView from './components/DiagnosticView';
 import VisionPreview from './components/VisionPreview';
 import MissionPanel from './components/MissionPanel';
+import BkimProtocolView from './components/BkimProtocolView';
 import SkillsAndInterests from './components/SkillsAndInterests';
 import ProjectShowcase from './components/ProjectShowcase';
 import WorkExperience from './components/WorkExperience';
 import Education from './components/Education';
 import Testimonials from './components/Testimonials';
 import ContactSection from './components/ContactSection';
-import BkimProtocolView from './components/BkimProtocolView';
 
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const EVALUATION_MODEL_NAME = 'gemini-3-flash-preview';
@@ -92,18 +92,18 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
   },
   [Language.KOREAN]: {
     appTitle: "폴리그랏 랩스",
-    appSub: "멀티모달 뉴ラル 인터페이스",
+    appSub: "멀티모달 뉴럴 인터페이스",
     visionLink: "비전 링크",
     uplinkReady: "대기 중",
     uplinkActive: "동기화됨",
-    streamTitle: "언어 데이터 스트림",
+    streamTitle: "언어 데이터 스트リーム",
     analyzeTitle: "AI 진단 프로토콜",
     analyzeDesc: "문법, 어휘, 유창성 분석.",
     archiveTitle: "세션 커밋",
     archiveDesc: "로그 저장.",
     analyzeBtn: "흐름 분석",
     archiveBtn: "상태 저장",
-    oscilloscope: "뉴럴 오실로스코프",
+    oscilloscope: "뉴럴 오실로スコープ",
     aboutMe: "엔지니어 프로필",
     portfolio: "포트폴리오",
     camError: "카메라 접근 거부됨.",
@@ -123,6 +123,9 @@ const App: React.FC = () => {
   const [availableCategories, setAvailableCategories] = useState<string[]>(Object.values(BusinessCategory));
   const [dailyTopic, setDailyTopic] = useState<string>(DAILY_TOPICS[0]);
   const [availableDailyTopics, setAvailableDailyTopics] = useState<string[]>(DAILY_TOPICS);
+  const [certificationTopic, setCertificationTopic] = useState<string>(CERTIFICATION_TOPICS[0]);
+  const [availableCertTopics, setAvailableCertTopics] = useState<string[]>(CERTIFICATION_TOPICS);
+  
   const [isChallengeMode, setIsChallengeMode] = useState(false);
   const [isVisionEnabled, setIsVisionEnabled] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -185,9 +188,6 @@ const App: React.FC = () => {
         setCameraStream(null);
       }
     }
-    return () => {
-      if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
-    };
   }, [isVisionEnabled, t.camError, t.camNotFound, t.secureContextError]);
 
   const cleanup = useCallback(() => {
@@ -202,17 +202,10 @@ const App: React.FC = () => {
 
   const startSession = async () => {
     if (status.isConnecting || status.isConnected) return;
-
     if (!window.isSecureContext) {
       setStatus({ isConnecting: false, isConnected: false, error: t.secureContextError });
       return;
     }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus({ isConnecting: false, isConnected: false, error: t.micNotFound });
-      return;
-    }
-
     setStatus({ isConnecting: true, isConnected: false, error: null });
     
     try {
@@ -286,21 +279,17 @@ const App: React.FC = () => {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-          systemInstruction: `You are Bkim, a technical senior engineer. Scenario: ${mode}. Focus: ${category}. Respond naturally.`,
+          systemInstruction: mode === PracticeMode.CERTIFICATION 
+            ? `You are an expert instructor for the ${certificationTopic} certification. Your goal is to help the user study, explain complex technical terms in ${languageRef.current}, quiz them on key concepts, and provide encouraging feedback. Speak in ${languageRef.current}.`
+            : `You are Bkim, a technical senior engineer. Scenario: ${mode}. Focus: ${category}. Respond naturally in ${languageRef.current}.`,
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
       });
       sessionRef.current = await sessionPromise;
     } catch (err: any) {
-      console.error("Session start error:", err);
-      let errorMsg = err.message || "Failed to initialize neural link.";
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        errorMsg = t.micDenied;
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        errorMsg = t.micNotFound;
-      }
-      setStatus({ isConnecting: false, isConnected: false, error: errorMsg });
+      console.error(err);
+      setStatus({ isConnecting: false, isConnected: false, error: err.message || "Failed to start neural link." });
       cleanup();
     }
   };
@@ -358,6 +347,8 @@ const App: React.FC = () => {
             availableCategories={availableCategories} onAddCategory={() => {}}
             selectedDailyTopic={dailyTopic} onDailyTopicChange={setDailyTopic}
             availableDailyTopics={availableDailyTopics} onAddDailyTopic={() => {}}
+            selectedCertTopic={certificationTopic} onCertTopicChange={setCertificationTopic}
+            availableCertTopics={availableCertTopics} onAddCertTopic={() => {}}
             isChallengeMode={isChallengeMode} onChallengeToggle={setIsChallengeMode}
           />
           <VisionPreview stream={cameraStream} isActive={isVisionEnabled} />
@@ -383,6 +374,19 @@ const App: React.FC = () => {
           </div>
         </section>
       </main>
+
+      <div className="w-full max-w-7xl mt-24 border-t border-slate-800 pt-20">
+        <div className="space-y-20">
+          <SkillsAndInterests lang={language} />
+          <ProjectShowcase lang={language} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 px-4">
+            <WorkExperience lang={language} />
+            <Education lang={language} />
+          </div>
+          <Testimonials lang={language} />
+          <ContactSection lang={language} />
+        </div>
+      </div>
 
       {currentBkimSchedule && <BkimProtocolView schedule={currentBkimSchedule} onClose={() => setCurrentBkimSchedule(null)} />}
     </div>

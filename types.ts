@@ -44,6 +44,7 @@ export interface SavedSession {
   mode: PracticeMode;
   category: string;
   dailyTopic: string;
+  certificationTopic: string;
   transcriptions: TranscriptionEntry[];
   preview: string;
   evaluation?: LinguisticEvaluation;
@@ -66,7 +67,8 @@ export enum Language {
 
 export enum PracticeMode {
   DAILY = 'Daily Conversation',
-  BUSINESS = 'Business'
+  BUSINESS = 'Business',
+  CERTIFICATION = 'Certification Study'
 }
 
 export enum BusinessSituation {
@@ -92,6 +94,17 @@ export const DAILY_TOPICS = [
   'Island Tour Planning',
   'Seaside Restaurant',
   'Nature Photography'
+];
+
+export const CERTIFICATION_TOPICS = [
+  'G検定 (JDLA Deep Learning for GENERAL)',
+  'AWS Certified Solutions Architect',
+  'JLPT (Japanese Language Proficiency)',
+  'EIKEN (English Proficiency Test)',
+  'TOEIC Listening & Reading',
+  'PMP (Project Management Professional)',
+  'Azure Fundamentals',
+  'Google Cloud Professional Data Engineer'
 ];
 
 export interface SessionStatus {
