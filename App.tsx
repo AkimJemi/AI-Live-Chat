@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
-import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, SavedSession, LinguisticEvaluation, MissionObjective } from './types';
+import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule } from './types';
 import { createBlob, decode, decodeAudioData } from './services/audioService';
 import ControlPanel from './components/ControlPanel';
 import TranscriptionView from './components/TranscriptionView';
@@ -17,6 +17,7 @@ import WorkExperience from './components/WorkExperience';
 import Education from './components/Education';
 import Testimonials from './components/Testimonials';
 import ContactSection from './components/ContactSection';
+import BkimProtocolView from './components/BkimProtocolView';
 
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const EVALUATION_MODEL_NAME = 'gemini-3-flash-preview';
@@ -37,7 +38,9 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     archiveBtn: "Archive State",
     oscilloscope: "Neural Oscilloscope",
     aboutMe: "Engineer Profile",
-    portfolio: "Portfolio"
+    portfolio: "Portfolio",
+    camError: "Camera access denied. Please enable it in browser settings.",
+    camNotFound: "No camera found on this device."
   },
   [Language.JAPANESE]: {
     appTitle: "Polyglot Labs",
@@ -54,7 +57,9 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     archiveBtn: "状態保存",
     oscilloscope: "ニューラル・オシロスコープ",
     aboutMe: "エンジニア・プロフィール",
-    portfolio: "ポートフォリオ"
+    portfolio: "ポートフォリオ",
+    camError: "カメラの使用が拒否されました。ブラウザの設定から許可してください。",
+    camNotFound: "カメラが見つかりませんでした。"
   },
   [Language.CHINESE]: {
     appTitle: "博学语言实验室",
@@ -71,7 +76,9 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     archiveBtn: "存档状态",
     oscilloscope: "神经示波器",
     aboutMe: "工程师简介",
-    portfolio: "作品集"
+    portfolio: "作品集",
+    camError: "相机访问被拒绝。请在浏览器设置中启用。",
+    camNotFound: "未找到相机。"
   },
   [Language.KOREAN]: {
     appTitle: "폴리그랏 랩스",
@@ -88,7 +95,9 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     archiveBtn: "상태 저장",
     oscilloscope: "뉴럴 오실로스코프",
     aboutMe: "엔지니어 프로필",
-    portfolio: "포트폴리오"
+    portfolio: "포트폴리오",
+    camError: "카메라 접근이 거부되었습니다. 브라우저 설정에서 허용해주세요.",
+    camNotFound: "카메라를 찾을 수 없습니다."
   }
 };
 
@@ -110,6 +119,7 @@ const App: React.FC = () => {
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [currentEvaluation, setCurrentEvaluation] = useState<LinguisticEvaluation | null>(null);
+  const [currentBkimSchedule, setCurrentBkimSchedule] = useState<BkimSchedule | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -140,14 +150,22 @@ const App: React.FC = () => {
     localStorage.setItem('polyglot_labs_history', JSON.stringify(savedSessions));
   }, [savedSessions]);
 
-  // Handle camera stream when vision is toggled
+  const t = LOCALIZED_STRINGS[language] || LOCALIZED_STRINGS[Language.ENGLISH];
+
   useEffect(() => {
     if (isVisionEnabled) {
       navigator.mediaDevices.getUserMedia({ video: true })
-        .then(setCameraStream)
+        .then(stream => {
+          setCameraStream(stream);
+          setStatus(prev => ({ ...prev, error: null }));
+        })
         .catch(err => {
           console.error("Camera error:", err);
           setIsVisionEnabled(false);
+          let errorMsg = t.camError;
+          if (err.name === 'NotFoundError') errorMsg = t.camNotFound;
+          setStatus(prev => ({ ...prev, error: errorMsg }));
+          setTimeout(() => setStatus(prev => ({ ...prev, error: null })), 5000);
         });
     } else {
       if (cameraStream) {
@@ -158,7 +176,67 @@ const App: React.FC = () => {
     return () => {
       if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
     };
-  }, [isVisionEnabled]);
+  }, [isVisionEnabled, t.camError, t.camNotFound]);
+
+  const triggerBkimProtocol = async () => {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Generate a high-fidelity "Senior Engineer One-Day Progress Schedule" and "Execution Preparation Checklist" for an AI Voice Application project.
+      Output exactly in JSON format:
+      {
+        "protocolId": "BKIM-X-99",
+        "dailySchedule": [
+          { "time": "09:00", "task": "Task name", "priority": "High", "status": "pending" },
+          ...
+        ],
+        "executionPrep": [
+          { "item": "Dependency check", "ready": true },
+          ...
+        ]
+      }`;
+
+      const response = await ai.models.generateContent({
+        model: EVALUATION_MODEL_NAME,
+        contents: prompt,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              protocolId: { type: Type.STRING },
+              dailySchedule: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    time: { type: Type.STRING },
+                    task: { type: Type.STRING },
+                    priority: { type: Type.STRING },
+                    status: { type: Type.STRING }
+                  }
+                }
+              },
+              executionPrep: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    item: { type: Type.STRING },
+                    ready: { type: Type.BOOLEAN }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text || "{}") as BkimSchedule;
+      setCurrentBkimSchedule(result);
+    } catch (e) {
+      console.error("Bkim Protocol activation failed:", e);
+    }
+  };
 
   const stopAllAudio = useCallback(() => {
     sourcesRef.current.forEach((source) => { try { source.stop(); } catch (e) {} });
@@ -242,7 +320,6 @@ const App: React.FC = () => {
             isConnectedRef.current = true;
             setStatus({ isConnected: true, isConnecting: false, error: null });
             
-            // Audio input
             const source = audioContextRef.current!.input.createMediaStreamSource(audioStream);
             const scriptProcessor = audioContextRef.current!.input.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
@@ -254,7 +331,6 @@ const App: React.FC = () => {
             inputAnalyserRef.current!.connect(scriptProcessor);
             scriptProcessor.connect(audioContextRef.current!.input.destination);
 
-            // Vision link streaming
             if (isVisionEnabled && cameraStream) {
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d');
@@ -282,7 +358,14 @@ const App: React.FC = () => {
           },
           onmessage: async (msg) => {
             if (msg.serverContent?.outputTranscription) currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
-            if (msg.serverContent?.inputTranscription) currentInputTranscription.current += msg.serverContent.inputTranscription.text;
+            if (msg.serverContent?.inputTranscription) {
+              const text = msg.serverContent.inputTranscription.text;
+              currentInputTranscription.current += text;
+              // Intent detection for BKIM Protocol
+              if (currentInputTranscription.current.toLowerCase().includes("are you there bkim")) {
+                triggerBkimProtocol();
+              }
+            }
             
             if (msg.serverContent?.turnComplete) {
               const u = currentInputTranscription.current.trim();
@@ -322,7 +405,7 @@ const App: React.FC = () => {
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
           outputAudioTranscription: {},
           inputAudioTranscription: {},
-          systemInstruction: `You are a high-immersion language coach for ${languageRef.current}. Speak ONLY in ${languageRef.current}. Mode: ${isChallengeMode ? 'Diagnostic/Challenge' : 'Supportive Training'}. Scenario: ${mode === PracticeMode.DAILY ? dailyTopic : category}.`,
+          systemInstruction: `You are a high-immersion language coach for ${languageRef.current}. Speak ONLY in ${languageRef.current}. Mode: ${isChallengeMode ? 'Diagnostic/Challenge' : 'Supportive Training'}. Scenario: ${mode === PracticeMode.DAILY ? dailyTopic : category}. If the user says "Are you there bkim?", acknowledge it with a tech-heavy greeting and wait for the protocol to sync.`,
         },
       });
       sessionRef.current = await sessionPromise;
@@ -404,10 +487,25 @@ const App: React.FC = () => {
     }
   };
 
-  const t = LOCALIZED_STRINGS[language] || LOCALIZED_STRINGS[Language.ENGLISH];
-
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center py-6 md:py-12 px-4 md:px-6 text-slate-200 overflow-x-hidden text-left">
+      {status.error && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md animate-in slide-in-from-top-4 duration-300">
+          <div className="bg-red-500/10 border border-red-500/50 backdrop-blur-xl p-4 rounded-2xl flex items-center gap-4 shadow-2xl">
+            <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-red-500/30 text-white">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+            </div>
+            <div className="flex-grow">
+              <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none mb-1">System Alert</h4>
+              <p className="text-xs text-red-100 font-medium leading-tight">{status.error}</p>
+            </div>
+            <button onClick={() => setStatus(prev => ({ ...prev, error: null }))} className="text-red-400/50 hover:text-red-400 transition-colors">
+               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="w-full max-w-7xl flex flex-col md:flex-row items-center justify-between mb-8 md:mb-12 gap-6 px-2">
         <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto">
           <div className="p-3 md:p-5 bg-blue-600 rounded-2xl md:rounded-[1.5rem] shadow-[0_0_40px_rgba(37,99,235,0.4)] flex-shrink-0">
@@ -420,6 +518,13 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex flex-row items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+           {currentBkimSchedule && (
+             <div className="flex items-center gap-2 h-12 md:h-14 px-4 bg-cyan-500/10 border border-cyan-500/30 rounded-xl animate-pulse">
+               <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(34,211,238,0.8)]"></div>
+               <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Bkim Protocol Active</span>
+             </div>
+           )}
+
            <button 
             onClick={() => setIsVisionEnabled(!isVisionEnabled)}
             disabled={status.isConnected}
@@ -543,6 +648,13 @@ const App: React.FC = () => {
       </div>
 
       {currentEvaluation && <DiagnosticView evaluation={currentEvaluation} onClose={() => setCurrentEvaluation(null)} />}
+      
+      {currentBkimSchedule && (
+        <BkimProtocolView 
+          schedule={currentBkimSchedule} 
+          onClose={() => setCurrentBkimSchedule(null)} 
+        />
+      )}
 
       <style>{`
         .action-btn-emerald {

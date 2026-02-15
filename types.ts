@@ -11,6 +11,22 @@ export interface MissionObjective {
   isCompleted: boolean;
 }
 
+export interface BkimTask {
+  time: string;
+  task: string;
+  priority: 'High' | 'Med' | 'Low';
+  status: 'pending' | 'active' | 'done';
+}
+
+export interface BkimSchedule {
+  protocolId: string;
+  dailySchedule: BkimTask[];
+  executionPrep: {
+    item: string;
+    ready: boolean;
+  }[];
+}
+
 export interface LinguisticEvaluation {
   grammarScore: number;
   vocabularyScore: number;
