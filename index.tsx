@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
 import { TranscriptionEntry, VoiceName, SessionStatus, Language, PracticeMode, BusinessSituation, BusinessCategory, DAILY_TOPICS, SavedSession, LinguisticEvaluation, BkimSchedule } from './types';
 import { createBlob, decode, decodeAudioData } from './services/audioService';
@@ -31,16 +32,19 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     uplinkActive: "Synchronized",
     streamTitle: "Linguistic Data Stream",
     analyzeTitle: "Diagnostic AI Protocol",
-    analyzeDesc: "Analyzes grammar, vocabulary, and fluency to generate a detailed neural score report.",
-    archiveTitle: "Session Commit Vault",
-    archiveDesc: "Saves current logs, missions, and diagnostics to the persistent history archive.",
+    analyzeDesc: "Analyzes grammar, vocabulary, and fluency.",
+    archiveTitle: "Session Commit",
+    archiveDesc: "Saves current logs.",
     analyzeBtn: "Analyze Flow",
     archiveBtn: "Archive State",
     oscilloscope: "Neural Oscilloscope",
     aboutMe: "Engineer Profile",
     portfolio: "Portfolio",
-    camError: "Camera access denied. Please enable it in browser settings.",
-    camNotFound: "No camera found on this device."
+    camError: "Camera access denied.",
+    camNotFound: "No camera found.",
+    micDenied: "Microphone access denied. Please enable it in browser settings.",
+    micNotFound: "Microphone hardware not found.",
+    secureContextError: "Media access requires a secure context (HTTPS/localhost)."
   },
   [Language.JAPANESE]: {
     appTitle: "Polyglot Labs",
@@ -50,16 +54,19 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     uplinkActive: "同期済み",
     streamTitle: "言語データストリーム",
     analyzeTitle: "AI診断プロトコル",
-    analyzeDesc: "文法、語彙、流暢さをニューラル分析し、詳細なスコアレポートを生成します。",
+    analyzeDesc: "文法、語彙、流暢さを分析。",
     archiveTitle: "セッション・コミット",
-    archiveDesc: "対話ログ、ミッション、診断データを履歴アーカイブに永続保存します。",
+    archiveDesc: "ログを保存。",
     analyzeBtn: "フロー解析",
     archiveBtn: "状態保存",
     oscilloscope: "ニューラル・オシロスコープ",
     aboutMe: "エンジニア・プロフィール",
     portfolio: "ポートフォリオ",
-    camError: "カメラの使用が拒否されました。ブラウザの設定から許可してください。",
-    camNotFound: "カメラが見つかりませんでした。"
+    camError: "カメラの使用が拒否されました。",
+    camNotFound: "カメラが見つかりません。",
+    micDenied: "マイクの使用が拒否されました。ブラウザの設定で許可してください。",
+    micNotFound: "マイクが見つかりませんでした。",
+    secureContextError: "マイクの使用にはHTTPS通信が必要です。"
   },
   [Language.CHINESE]: {
     appTitle: "博学语言实验室",
@@ -69,35 +76,41 @@ const LOCALIZED_STRINGS: Record<Language, any> = {
     uplinkActive: "已同步",
     streamTitle: "语言数据流",
     analyzeTitle: "AI 诊断协议",
-    analyzeDesc: "分析语法、词汇和流畅度，生成详细的神经网络评分报告。",
-    archiveTitle: "会话归档库",
-    archiveDesc: "将当前日志、任务和診断数据保存到持久历史档案中。",
+    analyzeDesc: "分析语法、词汇和流畅度。",
+    archiveTitle: "会话归档",
+    archiveDesc: "保存日志。",
     analyzeBtn: "分析流程",
     archiveBtn: "存档状态",
     oscilloscope: "神经示波器",
     aboutMe: "工程师简介",
     portfolio: "作品集",
-    camError: "相机访问被拒绝。请在浏览器设置中启用。",
-    camNotFound: "未找到相机。"
+    camError: "相机访问被拒绝。",
+    camNotFound: "未找到相机。",
+    micDenied: "麦克风访问被拒绝。",
+    micNotFound: "未找到麦克风。",
+    secureContextError: "需要 HTTPS 连接才能访问媒体。"
   },
   [Language.KOREAN]: {
     appTitle: "폴리그랏 랩스",
-    appSub: "멀티모달 뉴럴 인터페이스",
+    appSub: "멀티모달 뉴ラル 인터페이스",
     visionLink: "비전 링크",
     uplinkReady: "대기 중",
     uplinkActive: "동기화됨",
-    streamTitle: "언어 데이터 ストリーム",
-    analyzeTitle: "AI 진단プロトコル",
-    analyzeDesc: "문법, 어휘, 유창성을 분석하여 상세한 신경망 점수 보고서를 생성합니다.",
-    archiveTitle: "세션 커밋 보관소",
-    archiveDesc: "현재 로그, 미션 및 진단 데이터를 영구 기록 아카이브에 저장합니다.",
+    streamTitle: "언어 데이터 스트림",
+    analyzeTitle: "AI 진단 프로토콜",
+    analyzeDesc: "문법, 어휘, 유창성 분석.",
+    archiveTitle: "세션 커밋",
+    archiveDesc: "로그 저장.",
     analyzeBtn: "흐름 분석",
     archiveBtn: "상태 저장",
     oscilloscope: "뉴럴 오실로스코프",
     aboutMe: "엔지니어 프로필",
     portfolio: "포트폴리오",
-    camError: "카메라 접근이 거부되었습니다. 브라우저 설정에서 허용해주세요.",
-    camNotFound: "카메라를 찾을 수 없습니다."
+    camError: "카메라 접근 거부됨.",
+    camNotFound: "카메라 없음.",
+    micDenied: "마이크 접근이 거부되었습니다.",
+    micNotFound: "마이크를 찾을 수 없습니다.",
+    secureContextError: "미디어 접근을 위해 HTTPS 연결이 필요합니다."
   }
 };
 
@@ -120,8 +133,6 @@ const App: React.FC = () => {
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [currentEvaluation, setCurrentEvaluation] = useState<LinguisticEvaluation | null>(null);
   const [currentBkimSchedule, setCurrentBkimSchedule] = useState<BkimSchedule | null>(null);
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   const audioContextRef = useRef<{ input: AudioContext; output: AudioContext; } | null>(null);
   const inputAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -150,6 +161,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (isVisionEnabled) {
+      if (!window.isSecureContext) {
+        setStatus(prev => ({ ...prev, error: t.secureContextError }));
+        setIsVisionEnabled(false);
+        return;
+      }
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(stream => {
           setCameraStream(stream);
@@ -159,7 +175,7 @@ const App: React.FC = () => {
           console.error("Camera error:", err);
           setIsVisionEnabled(false);
           let errorMsg = t.camError;
-          if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') errorMsg = t.camNotFound;
+          if (err.name === 'NotFoundError') errorMsg = t.camNotFound;
           setStatus(prev => ({ ...prev, error: errorMsg }));
           setTimeout(() => setStatus(prev => ({ ...prev, error: null })), 6000);
         });
@@ -172,68 +188,7 @@ const App: React.FC = () => {
     return () => {
       if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
     };
-  }, [isVisionEnabled, t.camError, t.camNotFound]);
-
-  const triggerBkimProtocol = async () => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `あなたは「Bkim」というシニアエンジニアです。現在の開発コンテキストに基づき、今日の進捗予定と実行準備チェックリストを作成してください。
-      出力は厳密に以下のJSONフォーマットで、日本語で作成してください：
-      {
-        "protocolId": "BKIM-PROT-" + Math.floor(Math.random() * 1000),
-        "dailySchedule": [
-          { "time": "09:00", "task": "タスク内容", "priority": "High"|"Med"|"Low", "status": "pending" }
-        ],
-        "executionPrep": [
-          { "item": "準備項目", "ready": boolean }
-        ]
-      }`;
-
-      const response = await ai.models.generateContent({
-        model: EVALUATION_MODEL_NAME,
-        contents: prompt,
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              protocolId: { type: Type.STRING },
-              dailySchedule: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    time: { type: Type.STRING },
-                    task: { type: Type.STRING },
-                    priority: { type: Type.STRING },
-                    status: { type: Type.STRING }
-                  },
-                  required: ["time", "task", "priority", "status"]
-                }
-              },
-              executionPrep: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    item: { type: Type.STRING },
-                    ready: { type: Type.BOOLEAN }
-                  },
-                  required: ["item", "ready"]
-                }
-              }
-            },
-            required: ["protocolId", "dailySchedule", "executionPrep"]
-          }
-        }
-      });
-
-      const result = JSON.parse(response.text || "{}") as BkimSchedule;
-      setCurrentBkimSchedule(result);
-    } catch (e) {
-      console.error("Bkim Protocol activation failed:", e);
-    }
-  };
+  }, [isVisionEnabled, t.camError, t.camNotFound, t.secureContextError]);
 
   const cleanup = useCallback(() => {
     isConnectedRef.current = false;
@@ -247,9 +202,23 @@ const App: React.FC = () => {
 
   const startSession = async () => {
     if (status.isConnecting || status.isConnected) return;
+
+    if (!window.isSecureContext) {
+      setStatus({ isConnecting: false, isConnected: false, error: t.secureContextError });
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus({ isConnecting: false, isConnected: false, error: t.micNotFound });
+      return;
+    }
+
     setStatus({ isConnecting: true, isConnected: false, error: null });
     
     try {
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = audioStream;
+
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       if (!audioContextRef.current) {
         audioContextRef.current = { 
@@ -260,9 +229,6 @@ const App: React.FC = () => {
         outputAnalyserRef.current = audioContextRef.current.output.createAnalyser();
       }
       
-      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = audioStream;
-
       const sessionPromise = ai.live.connect({
         model: MODEL_NAME,
         callbacks: {
@@ -283,13 +249,7 @@ const App: React.FC = () => {
           },
           onmessage: async (msg) => {
             if (msg.serverContent?.outputTranscription) currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
-            if (msg.serverContent?.inputTranscription) {
-              const text = msg.serverContent.inputTranscription.text;
-              currentInputTranscription.current += text;
-              if (currentInputTranscription.current.toLowerCase().includes("are you there bkim")) {
-                triggerBkimProtocol();
-              }
-            }
+            if (msg.serverContent?.inputTranscription) currentInputTranscription.current += msg.serverContent.inputTranscription.text;
             
             if (msg.serverContent?.turnComplete) {
               const u = currentInputTranscription.current.trim();
@@ -305,15 +265,6 @@ const App: React.FC = () => {
               currentOutputTranscription.current = '';
             }
 
-            const interrupted = msg.serverContent?.interrupted;
-            if (interrupted) {
-              for (const source of sourcesRef.current.values()) {
-                try { source.stop(); } catch(e) {}
-              }
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-            }
-            
             const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio && audioContextRef.current) {
               const { output } = audioContextRef.current;
@@ -323,30 +274,34 @@ const App: React.FC = () => {
               source.buffer = buffer;
               source.connect(outputAnalyserRef.current!);
               outputAnalyserRef.current!.connect(output.destination);
-              
-              source.addEventListener('ended', () => {
-                sourcesRef.current.delete(source);
-              });
-              
+              source.addEventListener('ended', () => sourcesRef.current.delete(source));
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += buffer.duration;
               sourcesRef.current.add(source);
             }
           },
-          onerror: (e) => setStatus({ isConnected: false, isConnecting: false, error: "Connection error" }),
+          onerror: (e) => setStatus({ isConnected: false, isConnecting: false, error: "Link failed" }),
           onclose: () => cleanup(),
         },
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-          systemInstruction: `You are Bkim, a technical senior engineer. Scenario: ${mode}. Focus: ${category}. Respond naturally but maintain a professional engineering persona.`,
+          systemInstruction: `You are Bkim, a technical senior engineer. Scenario: ${mode}. Focus: ${category}. Respond naturally.`,
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
       });
       sessionRef.current = await sessionPromise;
     } catch (err: any) {
-      setStatus({ isConnecting: false, isConnected: false, error: err.message });
+      console.error("Session start error:", err);
+      let errorMsg = err.message || "Failed to initialize neural link.";
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMsg = t.micDenied;
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errorMsg = t.micNotFound;
+      }
+      setStatus({ isConnecting: false, isConnected: false, error: errorMsg });
+      cleanup();
     }
   };
 
@@ -354,12 +309,12 @@ const App: React.FC = () => {
     <div className="min-h-screen gradient-bg flex flex-col items-center py-8 px-4 text-slate-200">
       {status.error && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md bg-red-500/10 border border-red-500/50 backdrop-blur-xl p-4 rounded-2xl flex items-center gap-4 shadow-2xl animate-in slide-in-from-top-4">
-          <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 text-white font-bold">!</div>
+          <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 text-white font-bold text-lg">!</div>
           <div className="flex-grow">
             <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none mb-1">System Alert</h4>
             <p className="text-xs text-red-100 font-medium leading-tight">{status.error}</p>
           </div>
-          <button onClick={() => setStatus(prev => ({ ...prev, error: null }))} className="text-red-400/50 hover:text-red-400 transition-colors">✕</button>
+          <button onClick={() => setStatus(prev => ({ ...prev, error: null }))} className="text-red-400/50 hover:text-red-400 transition-colors p-2 text-xl">✕</button>
         </div>
       )}
 
@@ -377,7 +332,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-4">
            <button 
             onClick={() => setIsVisionEnabled(!isVisionEnabled)}
-            className={`px-6 py-3 rounded-xl border transition-all ${isVisionEnabled ? 'bg-indigo-500/10 border-indigo-500 text-indigo-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}
+            className={`px-6 py-3 rounded-xl border transition-all ${isVisionEnabled ? 'bg-indigo-500/10 border-indigo-500 text-indigo-400' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'}`}
           >
             {t.visionLink}
           </button>
@@ -417,8 +372,14 @@ const App: React.FC = () => {
           </div>
           
           <div className="p-8 bg-slate-900/40 rounded-[2rem] border border-slate-800 shadow-xl grid grid-cols-1 md:grid-cols-2 gap-12">
-            <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#10b981" />
-            <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500/60 ml-1">Mic Input</span>
+              <AudioVisualizer analyser={inputAnalyserRef.current} isActive={status.isConnected} color="#10b981" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-500/60 ml-1">AI Output</span>
+              <AudioVisualizer analyser={outputAnalyserRef.current} isActive={status.isConnected} color="#3b82f6" />
+            </div>
           </div>
         </section>
       </main>
@@ -427,5 +388,11 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const container = document.getElementById('root');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+}
 
 export default App;
