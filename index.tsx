@@ -22,7 +22,6 @@ import BkimProtocolView from './components/BkimProtocolView';
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const EVALUATION_MODEL_NAME = 'gemini-3-flash-preview';
 
-// Fixed: Added missing Chinese and Korean entries to satisfy Record<Language, any> on line 25
 const LOCALIZED_STRINGS: Record<Language, any> = {
   [Language.ENGLISH]: {
     appTitle: "Polyglot Labs",
@@ -181,7 +180,7 @@ const App: React.FC = () => {
       const prompt = `あなたは「Bkim」というシニアエンジニアです。現在の開発コンテキストに基づき、今日の進捗予定と実行準備チェックリストを作成してください。
       出力は厳密に以下のJSONフォーマットで、日本語で作成してください：
       {
-        "protocolId": "BKIM-X-99",
+        "protocolId": "BKIM-PROT-" + Math.floor(Math.random() * 1000),
         "dailySchedule": [
           { "time": "09:00", "task": "タスク内容", "priority": "High"|"Med"|"Low", "status": "pending" }
         ],
@@ -208,7 +207,8 @@ const App: React.FC = () => {
                     task: { type: Type.STRING },
                     priority: { type: Type.STRING },
                     status: { type: Type.STRING }
-                  }
+                  },
+                  required: ["time", "task", "priority", "status"]
                 }
               },
               executionPrep: {
@@ -218,10 +218,12 @@ const App: React.FC = () => {
                   properties: {
                     item: { type: Type.STRING },
                     ready: { type: Type.BOOLEAN }
-                  }
+                  },
+                  required: ["item", "ready"]
                 }
               }
-            }
+            },
+            required: ["protocolId", "dailySchedule", "executionPrep"]
           }
         }
       });
@@ -273,7 +275,6 @@ const App: React.FC = () => {
             scriptProcessor.onaudioprocess = (e) => {
               if (!isConnectedRef.current) return;
               const pcmBlob = createBlob(e.inputBuffer.getChannelData(0));
-              // Fixed: Using sessionPromise.then to send real-time input per guidelines
               sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob }));
             };
             source.connect(inputAnalyserRef.current!);
@@ -304,7 +305,6 @@ const App: React.FC = () => {
               currentOutputTranscription.current = '';
             }
 
-            // Fixed: Implement interruption handling to stop all active sources and reset startTime
             const interrupted = msg.serverContent?.interrupted;
             if (interrupted) {
               for (const source of sourcesRef.current.values()) {
@@ -324,7 +324,6 @@ const App: React.FC = () => {
               source.connect(outputAnalyserRef.current!);
               outputAnalyserRef.current!.connect(output.destination);
               
-              // Fixed: Ensure sources are tracked for interruption cleanup
               source.addEventListener('ended', () => {
                 sourcesRef.current.delete(source);
               });
@@ -340,7 +339,7 @@ const App: React.FC = () => {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-          systemInstruction: `You are Bkim, a technical senior engineer. Scenario: ${mode}. Focus: ${category}.`,
+          systemInstruction: `You are Bkim, a technical senior engineer. Scenario: ${mode}. Focus: ${category}. Respond naturally but maintain a professional engineering persona.`,
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
